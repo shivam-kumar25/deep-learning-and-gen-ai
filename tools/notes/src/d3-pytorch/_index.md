@@ -9,5 +9,5 @@ Part **D3** of the course: notes 10–12. Every code cell runs on a live PyTorch
 {{cards:note}}
 
 :::tip
-Previous: **[D2: Training Neural Networks](../d2-training-neural-networks/index.html)**. Next: **D4: Convolutional Networks**.
+Previous: **[D2: Training Neural Networks](../d2-training-neural-networks/index.html)**. Next: **[D4: Convolutional Networks](../d4-convolutional-networks/index.html)**.
 :::

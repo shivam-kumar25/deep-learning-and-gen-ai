@@ -1,0 +1,40 @@
+{
+ "conv": "tools/notes/.tmp/conv/d4",
+ "src": "tools/notes/src/d4-convolutional-networks",
+ "notes_dir": "notes/d4-convolutional-networks",
+ "img_root": "cnn",
+ "eyebrow": "CNNs",
+ "badge": "🔍",
+ "pages": {
+  "13_why_cnns": {
+   "number": "13"
+  },
+  "14_convolution": {
+   "number": "14"
+  },
+  "15_kernel_stride_padding": {
+   "number": "15"
+  },
+  "16_pooling": {
+   "number": "16"
+  },
+  "17_batch_norm_and_dropout": {
+   "number": "17"
+  },
+  "18_building_and_training_a_cnn": {
+   "number": "18"
+  },
+  "19_famous_architectures": {
+   "number": "19"
+  }
+ },
+ "renumber": {
+  "[Nn]otebook 0": "note 13",
+  "[Nn]otebook 1": "note 14",
+  "[Nn]otebook 2": "note 15",
+  "[Nn]otebook 3": "note 16",
+  "[Nn]otebook 4": "note 17",
+  "[Nn]otebook 5": "note 18",
+  "[Nn]otebook 6": "note 19"
+ }
+}

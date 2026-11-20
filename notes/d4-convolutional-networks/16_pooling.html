@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pooling · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="16_pooling">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Pooling</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">CNNs · note 16</div><h1>Pooling</h1><div class="lead"><p>Downsample the feature maps. No learned parameters — just a fixed reduction that shrinks spatial dimensions, reduces compute, grows the receptive field, and buys small-shift invariance.</p>
+</div></div>
+<section class="sec" id="why-pool" data-num="01" data-title="Why pool">
+<h2><span class="num">01</span> Why pool</h2>
+<h3 id="why-pool-three-jobs-at-once">Three jobs at once</h3>
+<ol>
+<li><strong>Reduce compute.</strong> Halving spatial dimensions quarters the operations in all downstream layers.</li>
+<li><strong>Grow receptive field.</strong> After pooling, each subsequent layer sees a larger region of the original image.</li>
+<li><strong>Introduce small-shift invariance.</strong> A feature detected at pixel (10, 10) and the same feature at (11, 11) often fall in the same 2 × 2 window, so max pooling gives the same output for both.</li>
+</ol>
+<h3 id="why-pool-no-learned-parameters">No learned parameters</h3>
+<p>Unlike conv layers, pooling has <strong>zero parameters</strong>. It's a fixed function — pick a window, apply max/avg/etc., output a single number per window. Nothing to train.</p>
+<h3 id="why-pool-standard-configuration">Standard configuration</h3>
+<ul>
+<li><strong>Window size</strong> — 2×2 is overwhelmingly common.</li>
+<li><strong>Stride</strong> — equals window size (non-overlapping windows). Stride 2 for a 2×2 window.</li>
+</ul>
+<p>This halves both spatial dimensions in one call.</p>
+<div class="donebar"><button class="donebtn" data-done="why-pool">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="types-max-average-min" data-num="02" data-title="Types — max, average, min">
+<h2><span class="num">02</span> Types — max, average, min</h2>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Pool type</th>
+<th style="text-align:left">Output</th>
+<th style="text-align:left">When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Max</strong></td>
+<td style="text-align:left">Maximum of the window</td>
+<td style="text-align:left">Standard default — &quot;did the feature appear anywhere here?&quot;</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Average</strong></td>
+<td style="text-align:left">Mean of the window</td>
+<td style="text-align:left">Smoother; used in global pooling, some lightweight networks</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Min</strong></td>
+<td style="text-align:left">Minimum of the window</td>
+<td style="text-align:left">Rare — useful for detecting &quot;dark&quot; or inverse features</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>L2</strong></td>
+<td style="text-align:left">L2 norm of the window</td>
+<td style="text-align:left">Rare — smoother than max</td>
+</tr>
+</tbody>
+</table></div>
+<p>Max pooling dominates in practice. Average pooling makes a comeback as <strong>global average pooling</strong> at the end of networks.</p>
+<div class="donebar"><button class="donebtn" data-done="types-max-average-min">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="max-pooling-illustrated" data-num="03" data-title="Max pooling, illustrated">
+<h2><span class="num">03</span> Max pooling, illustrated</h2>
+<figure class="fig"><img src="images/out/16_pooling-01.png" alt="2 × 2 pooling with stride 2 on a 4 × 4 input. Each coloured window becomes one output value: its maximum, its average or its minimum." loading="lazy"><figcaption>2 × 2 pooling with stride 2 on a 4 × 4 input. Each coloured window becomes one output value: its maximum, its average or its minimum.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+X = np.array([[5, 8, 3, 6], [2, 3, 1, 1], [1, 2, 9, 4], [7, 3, 2, 5]])
+cols = {(0, 0): &quot;#fecaca&quot;, (0, 1): &quot;#bfdbfe&quot;, (1, 0): &quot;#bbf7d0&quot;, (1, 1): &quot;#fde68a&quot;}
+fig, axes = plt.subplots(1, 4, figsize=(14, 3.6), gridspec_kw={&quot;width_ratios&quot;: [4, 2.4, 2.4, 2.4]})
+def cell(ax, i, j, n, v, c):
+    ax.add_patch(Rectangle((j, n - 1 - i), 1, 1, fc=c, ec=&quot;#374151&quot;)); ax.text(j + 0.5, n - 0.5 - i, v, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=12)
+for (i, j), v in np.ndenumerate(X):
+    cell(axes[0], i, j, 4, str(v), cols[(i // 2, j // 2)])
+axes[0].set_title(&quot;input 4 × 4&quot;, fontsize=10); axes[0].set_xlim(-0.1, 4.1); axes[0].set_ylim(-0.1, 4.1)
+for ax, (name, f) in zip(axes[1:], [(&quot;max&quot;, np.max), (&quot;average&quot;, np.mean), (&quot;min&quot;, np.min)]):
+    for a in range(2):
+        for b in range(2):
+            v = f(X[2 * a:2 * a + 2, 2 * b:2 * b + 2])
+            cell(ax, a, b, 2, f&quot;{v:g}&quot;, cols[(a, b)])
+    ax.set_title(f&quot;{name} pool → 2 × 2&quot;, fontsize=10); ax.set_xlim(-0.1, 2.1); ax.set_ylim(-0.1, 2.1)
+for ax in axes: ax.set_aspect(&quot;equal&quot;); ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="max-pooling-illustrated-the-operation">The operation</h3>
+<p>Divide the input into non-overlapping windows (2×2 here). For each window, output the <strong>maximum</strong> value.</p>
+<h3 id="max-pooling-illustrated-why-max-works-so-well">Why max works so well</h3>
+<ul>
+<li><strong>Preserves strong activations.</strong> The whole point of a feature map is to say &quot;a feature is present here.&quot; Max keeps the strongest &quot;present&quot; signal in the local region.</li>
+<li><strong>Robust to position jitter.</strong> If the feature moved by one pixel, the max probably didn't change.</li>
+<li><strong>Fast gradient flow.</strong> The backward pass routes the gradient only through the argmax position — simple and sparse.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="max-pooling-illustrated">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="average-pooling-illustrated" data-num="04" data-title="Average pooling, illustrated">
+<h2><span class="num">04</span> Average pooling, illustrated</h2>
+<h3 id="average-pooling-illustrated-the-operation">The operation</h3>
+<p>Same windowing, but output the <strong>mean</strong> instead of max.</p>
+<h3 id="average-pooling-illustrated-when-average-beats-max">When average beats max</h3>
+<ul>
+<li><strong>Smoothness matters</strong> — averaging reduces noise more than max.</li>
+<li><strong>The strong-activation story doesn't apply</strong> — e.g., at the very end of the network as global average pooling (below).</li>
+<li><strong>Low-resource networks</strong> (MobileNet, etc.) sometimes prefer average for different numerical properties.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="average-pooling-illustrated">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="min-pooling-and-when-its-useful" data-num="05" data-title="Min pooling (and when it&#x27;s useful)">
+<h2><span class="num">05</span> Min pooling (and when it's useful)</h2>
+<h3 id="min-pooling-and-when-its-useful-when-it-shows-up">When it shows up</h3>
+<p>Rare in standard image classification. Useful when:</p>
+<ul>
+<li><strong>Dark features are the target</strong> — detecting dark spots on a light background.</li>
+<li><strong>Inverted feature maps</strong> — some domain-specific architectures.</li>
+<li><strong>Theoretical exercises</strong> — mostly here for completeness.</li>
+</ul>
+<p>In practice, max + a sign flip of the feature map does the same work. Few modern frameworks even implement <code>MinPool2d</code> directly.</p>
+<div class="donebar"><button class="donebtn" data-done="min-pooling-and-when-its-useful">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="global-pooling" data-num="06" data-title="Global pooling">
+<h2><span class="num">06</span> Global pooling</h2>
+<h3 id="global-pooling-the-idea">The idea</h3>
+<p>Instead of a small window (2×2), the pooling window covers the <strong>entire spatial dimension</strong>. Input shape <code>(N, C, H, W)</code> → output shape <code>(N, C, 1, 1)</code> → flatten to <code>(N, C)</code>.</p>
+<ul>
+<li><strong>Global average pooling (GAP)</strong> — one average per channel across the whole feature map.</li>
+<li><strong>Global max pooling (GMP)</strong> — one max per channel.</li>
+</ul>
+<h3 id="global-pooling-where-its-used">Where it's used</h3>
+<ul>
+<li><strong>Classification heads.</strong> GoogLeNet replaced the final dense layers with a GAP + single linear layer — hugely reducing parameters. See <a href="19_famous_architectures.html">note 19</a>.</li>
+<li><strong>Attention mechanisms.</strong> GAP is often the first &quot;aggregate per channel&quot; step before computing attention weights.</li>
+<li><strong>Modern CNNs</strong> generally use GAP as the bridge between the convolutional backbone and the classifier.</li>
+</ul>
+<h3 id="global-pooling-why-gap-flatten-dense">Why GAP &gt; flatten + dense</h3>
+<p>Flattening a 7×7×512 feature map into a 25,088-dim vector followed by a 1,000-unit dense layer = <strong>25M parameters</strong>. GAP collapses that to a 512-dim vector; the dense layer that follows has 512 × 1000 = <strong>512k parameters</strong> — ~50× fewer, and empirically regularises better.</p>
+<div class="donebar"><button class="donebtn" data-done="global-pooling">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="pooling-vs-strided-convolution" data-num="07" data-title="Pooling vs strided convolution">
+<h2><span class="num">07</span> Pooling vs strided convolution</h2>
+<h3 id="pooling-vs-strided-convolution-the-question">The question</h3>
+<p>Both reduce spatial dimensions. Both have the same output size for 2×2 window / stride 2. Which should you use?</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Method</th>
+<th style="text-align:left">Parameters</th>
+<th style="text-align:left">Expressivity</th>
+<th style="text-align:left">Common in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>MaxPool(2)</strong></td>
+<td style="text-align:left">0</td>
+<td style="text-align:left">Fixed function</td>
+<td style="text-align:left">Classic CNNs (LeNet, AlexNet, VGG)</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Conv(stride=2)</strong></td>
+<td style="text-align:left">Full</td>
+<td style="text-align:left">Learned downsampling</td>
+<td style="text-align:left">Modern CNNs (ResNet, EfficientNet)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="pooling-vs-strided-convolution-the-modern-view">The modern view</h3>
+<p>Replacing pooling with strided conv is now standard practice. The reasoning:</p>
+<ul>
+<li>The downsampling itself becomes <strong>learnable</strong>, letting the network figure out <em>how</em> to subsample.</li>
+<li>It's one fewer layer to think about (conv + pool collapses to just conv).</li>
+<li>It can match or beat pooling (the &quot;all-convolutional&quot; networks of Springenberg et al., 2014), though max pooling remains a solid, parameter-free choice.</li>
+</ul>
+<p>The classic &quot;conv + ReLU + pool&quot; block is still a fine choice: it is what the CNN in <a href="18_building_and_training_a_cnn.html">note 18</a> uses on Fashion-MNIST. For modern production models, strided conv is the standard.</p>
+<div class="donebar"><button class="donebtn" data-done="pooling-vs-strided-convolution">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo" data-num="08" data-title="Runnable demo">
+<h2><span class="num">08</span> Runnable demo</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+
+# The 4x4 input from the figure above
+x = torch.tensor([[[[5, 8, 3, 6],
+                    [2, 3, 1, 1],
+                    [1, 2, 9, 4],
+                    [7, 3, 2, 5]]]], dtype=torch.float32)
+print(f&quot;input shape: {tuple(x.shape)}&quot;)
+print(x.squeeze().numpy())
+
+# Max pooling 2x2 stride 2
+maxpool = nn.MaxPool2d(2)
+print(f&quot;\nmax pool 2x2:\n{maxpool(x).squeeze().numpy().astype(int)}&quot;)
+
+# Average pooling 2x2 stride 2
+avgpool = nn.AvgPool2d(2)
+print(f&quot;\navg pool 2x2:\n{avgpool(x).squeeze().numpy()}&quot;)
+
+# &quot;Min pooling&quot; via -max(-x)
+min_pool = -nn.functional.max_pool2d(-x, 2)
+print(f&quot;\nmin pool 2x2:\n{min_pool.squeeze().numpy().astype(int)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>input shape: (1, 1, 4, 4)
+[[5. 8. 3. 6.]
+ [2. 3. 1. 1.]
+ [1. 2. 9. 4.]
+ [7. 3. 2. 5.]]
+
+max pool 2x2:
+[[8 6]
+ [7 9]]
+
+avg pool 2x2:
+[[4.5  2.75]
+ [3.25 5.  ]]
+
+min pool 2x2:
+[[2 1]
+ [1 2]]</pre></div></div></div>
+<h3 id="runnable-demo-pooling-on-a-real-image">Pooling on a real image</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">from sklearn.datasets import load_sample_images
+
+img = load_sample_images().images[0].mean(axis=2)
+img_t = torch.tensor(img[None, None, :, :], dtype=torch.float32)
+
+mp = nn.MaxPool2d(2)
+ap = nn.AvgPool2d(2)
+
+fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+axes[0].imshow(img, cmap=&#x27;gray&#x27;); axes[0].set_title(f&#x27;original  {img.shape}&#x27;)
+axes[1].imshow(mp(img_t)[0, 0], cmap=&#x27;gray&#x27;); axes[1].set_title(f&#x27;max pool  {tuple(mp(img_t).shape[2:])}&#x27;)
+axes[2].imshow(ap(img_t)[0, 0], cmap=&#x27;gray&#x27;); axes[2].set_title(f&#x27;avg pool  {tuple(ap(img_t).shape[2:])}&#x27;)
+for ax in axes: ax.axis(&#x27;off&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/16_pooling-02.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-global-average-pooling">Global average pooling</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Simulate a feature map coming out of a CNN
+features = torch.randn(1, 512, 7, 7)      # typical late-layer shape
+print(f&quot;before GAP: {tuple(features.shape)}&quot;)
+
+# Standard way: nn.AdaptiveAvgPool2d(1) collapses to (N, C, 1, 1)
+gap = nn.AdaptiveAvgPool2d(1)
+pooled = gap(features)
+print(f&quot;after GAP:  {tuple(pooled.shape)}&quot;)
+
+# Then flatten and classify
+flat = pooled.flatten(1)
+print(f&quot;flattened:  {tuple(flat.shape)}&quot;)
+
+classifier = nn.Linear(512, 1000)         # single dense layer -&gt; 1000 classes
+logits = classifier(flat)
+print(f&quot;logits:     {tuple(logits.shape)}&quot;)
+
+print(f&quot;\n# params in classifier: {sum(p.numel() for p in classifier.parameters()):,}&quot;)
+print(f&quot;vs. flatten-and-dense: {25088 * 1000:,} = ~{25088*1000 / sum(p.numel() for p in classifier.parameters()):.0f}x more&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>before GAP: (1, 512, 7, 7)
+after GAP:  (1, 512, 1, 1)
+flattened:  (1, 512)
+logits:     (1, 1000)
+
+# params in classifier: 513,000
+vs. flatten-and-dense: 25,088,000 = ~49x more</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="15_kernel_stride_padding.html"><small>← Previous</small>Conv Hyperparameters — Kernel, Stride, Padding</a><a class="next" href="17_batch_norm_and_dropout.html"><small>Next →</small>Batch Normalisation &amp; Dropout</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{"subject": "cnn", "out": "tools/notes/.tmp/conv/d4",
+ "pages": [
+  {"nb": "0_why_cnn/0_why_cnn.ipynb", "stem": "13_why_cnns", "kind": "note", "run": true},
+  {"nb": "1_convolution/1_convolution.ipynb", "stem": "14_convolution", "kind": "note", "run": true},
+  {"nb": "2_hyperparameters/2_hyperparameters.ipynb", "stem": "15_kernel_stride_padding", "kind": "note", "run": true},
+  {"nb": "3_pooling/3_pooling.ipynb", "stem": "16_pooling", "kind": "note", "run": true},
+  {"nb": "4_batch_norm_and_dropout/4_batch_norm_and_dropout.ipynb", "stem": "17_batch_norm_and_dropout", "kind": "note", "run": true},
+  {"nb": "5_architecture_and_training/5_architecture_and_training.ipynb", "stem": "18_building_and_training_a_cnn", "kind": "note", "run": true},
+  {"nb": "6_famous_architectures/6_famous_architectures.ipynb", "stem": "19_famous_architectures", "kind": "note", "run": true}
+ ]}

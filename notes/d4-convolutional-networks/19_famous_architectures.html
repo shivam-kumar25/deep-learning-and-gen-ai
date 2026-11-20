@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Famous CNN Architectures · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="19_famous_architectures">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Famous CNN Architectures</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">CNNs · note 19</div><h1>Famous CNN Architectures</h1><div class="lead"><p>The four architectures every CV engineer knows: AlexNet (2012), VGGNet (2014), GoogLeNet (2014), and ResNet (2015). Each introduced one key idea the field has carried forward.</p>
+</div></div>
+<section class="sec" id="the-imagenet-challenge" data-num="01" data-title="The ImageNet challenge">
+<h2><span class="num">01</span> The ImageNet challenge</h2>
+<h3 id="the-imagenet-challenge-what-imagenet-is">What ImageNet is</h3>
+<ul>
+<li><strong>Dataset:</strong> 14+ million hand-labelled images across 20,000+ categories.</li>
+<li><strong>Challenge subset:</strong> 1.2M training images, 1000 classes.</li>
+<li><strong>Metric:</strong> top-5 error — prediction is &quot;right&quot; if the true label appears in the model's top-5 guesses.</li>
+</ul>
+<h3 id="the-imagenet-challenge-why-it-mattered">Why it mattered</h3>
+<p>Pre-2012, classical computer vision (SIFT, HOG, Fisher vectors + SVM) was state of the art. The best teams were tied in the mid-20% top-5 error range.</p>
+<p>In 2012, AlexNet hit <strong>15.3% top-5 error</strong> — 10 points better than second place. The gap was unprecedented. Every subsequent year, the winner was a CNN:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center">Year</th>
+<th style="text-align:left">Winner</th>
+<th style="text-align:center">Top-5 Error</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">2011</td>
+<td style="text-align:left">pre-DL</td>
+<td style="text-align:center">25.8%</td>
+</tr>
+<tr>
+<td style="text-align:center">2012</td>
+<td style="text-align:left">AlexNet</td>
+<td style="text-align:center">15.3%</td>
+</tr>
+<tr>
+<td style="text-align:center">2013</td>
+<td style="text-align:left">ZFNet</td>
+<td style="text-align:center">11.7%</td>
+</tr>
+<tr>
+<td style="text-align:center">2014</td>
+<td style="text-align:left">GoogLeNet</td>
+<td style="text-align:center">6.7%</td>
+</tr>
+<tr>
+<td style="text-align:center">2015</td>
+<td style="text-align:left">ResNet</td>
+<td style="text-align:center">3.6%</td>
+</tr>
+<tr>
+<td style="text-align:center">2017</td>
+<td style="text-align:left">SENet</td>
+<td style="text-align:center">2.25%</td>
+</tr>
+</tbody>
+</table></div>
+<p>The 2015 result crossed estimated human performance (~5%). The competition retired in 2017.</p>
+<h3 id="the-imagenet-challenge-why-these-four-architectures-still-matter">Why these four architectures still matter</h3>
+<p>They are the <em>conceptual</em> milestones:</p>
+<ul>
+<li><strong>AlexNet</strong> — scale + ReLU + GPU training.</li>
+<li><strong>VGG</strong> — depth with simple, uniform building blocks.</li>
+<li><strong>GoogLeNet</strong> — parallel paths and 1×1 bottlenecks.</li>
+<li><strong>ResNet</strong> — skip connections, enabling arbitrarily deep networks.</li>
+</ul>
+<p>Modern architectures (EfficientNet, ConvNeXt, Swin Transformer, ...) are refinements and combinations of these ideas.</p>
+<div class="donebar"><button class="donebtn" data-done="the-imagenet-challenge">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="alexnet-2012-deep-cnn-wins-imagenet" data-num="02" data-title="AlexNet (2012) — &quot;deep CNN wins ImageNet&quot;">
+<h2><span class="num">02</span> AlexNet (2012) — &quot;deep CNN wins ImageNet&quot;</h2>
+<figure class="fig"><img src="images/out/19_famous_architectures-01.png" alt="Winning top-5 error in the ImageNet challenge by year. The drop from 25.8% to 15.3% in 2012 is AlexNet, the first CNN to win; every winner after it was a CNN, and by 2015 ResNet was below the roughly 5% error estimated for a human." loading="lazy"><figcaption>Winning top-5 error in the ImageNet challenge by year. The drop from 25.8% to 15.3% in 2012 is AlexNet, the first CNN to win; every winner after it was a CNN, and by 2015 ResNet was below the roughly 5% error estimated for a human.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+
+years = [&quot;2010&quot;, &quot;2011&quot;, &quot;2012&quot;, &quot;2013&quot;, &quot;2014&quot;, &quot;2015&quot;, &quot;2016&quot;, &quot;2017&quot;]
+err = [28.2, 25.8, 15.3, 11.7, 6.7, 3.57, 2.99, 2.25]
+names = [&quot;NEC (SVM)&quot;, &quot;XRCE (Fisher vectors)&quot;, &quot;AlexNet&quot;, &quot;ZFNet&quot;, &quot;GoogLeNet&quot;, &quot;ResNet&quot;, &quot;ensemble&quot;, &quot;SENet&quot;]
+fig, ax = plt.subplots(figsize=(10, 4))
+bars = ax.bar(years, err, color=[&quot;#9ca3af&quot;] * 2 + [&quot;#2563eb&quot;] * 6)
+for b, e, n in zip(bars, err, names):
+    ax.text(b.get_x() + b.get_width() / 2, e + 0.5, f&quot;{e}%\n{n}&quot;, ha=&quot;center&quot;, fontsize=8)
+ax.axhline(5.1, color=&quot;#dc2626&quot;, ls=&quot;--&quot;); ax.text(7.45, 5.6, &quot;human ≈ 5.1%&quot;, color=&quot;#dc2626&quot;, ha=&quot;right&quot;, fontsize=9)
+ax.set_ylabel(&quot;top-5 error (%)&quot;); ax.set_ylim(0, 33); ax.grid(alpha=0.3, axis=&quot;y&quot;)
+plt.show()</pre></div></details>
+<h3 id="alexnet-2012-deep-cnn-wins-imagenet-the-architecture">The architecture</h3>
+<ul>
+<li><strong>5 convolutional layers</strong> — kernels of 11×11, 5×5, then 3×3 at depth.</li>
+<li><strong>3 fully-connected layers</strong> — 4096, 4096, 1000 units.</li>
+<li><strong>Max pooling</strong> after some conv layers.</li>
+<li><strong>~60M parameters</strong>.</li>
+<li>Input: 227×227×3.</li>
+</ul>
+<h3 id="alexnet-2012-deep-cnn-wins-imagenet-key-innovations">Key innovations</h3>
+<ul>
+<li><strong>ReLU activations</strong> — the first big network to use them instead of tanh/sigmoid. Faster training, no saturation.</li>
+<li><strong>Trained on two GPUs</strong> in parallel (necessary — a single GPU of the era couldn't hold the model).</li>
+<li><strong>Dropout</strong> (p = 0.5) in FC layers for regularisation.</li>
+<li><strong>Aggressive data augmentation</strong> — random crops, horizontal flips, colour jittering.</li>
+<li><strong>Local response normalisation</strong> (dropped by later architectures in favour of batch norm).</li>
+</ul>
+<h3 id="alexnet-2012-deep-cnn-wins-imagenet-historical-significance">Historical significance</h3>
+<p>AlexNet is where &quot;deep learning in production&quot; began. Krizhevsky, Sutskever, and Hinton showed that:</p>
+<ul>
+<li>Backprop + big data + GPUs + ReLU + dropout = state of the art.</li>
+<li>Hand-engineered features were obsolete for perceptual tasks.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="alexnet-2012-deep-cnn-wins-imagenet">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="vggnet-2014-small-kernels-stacked-deep" data-num="03" data-title="VGGNet (2014) — &quot;small kernels stacked deep&quot;">
+<h2><span class="num">03</span> VGGNet (2014) — &quot;small kernels stacked deep&quot;</h2>
+<h3 id="vggnet-2014-small-kernels-stacked-deep-the-architecture">The architecture</h3>
+<ul>
+<li><strong>16-19 layers</strong> (VGG-16 and VGG-19 are the common variants).</li>
+<li><strong>Only 3×3 convolutions</strong>. Every single conv is 3×3.</li>
+<li><strong>MaxPool 2×2</strong> between conv blocks.</li>
+<li><strong>3 FC layers</strong> at the end (4096, 4096, 1000).</li>
+<li><strong>~138M parameters</strong> — the FC layers dominate.</li>
+</ul>
+<h3 id="vggnet-2014-small-kernels-stacked-deep-key-insight-stack-small-kernels">Key insight — stack small kernels</h3>
+<p>VGG proved that a stack of <strong>three 3×3 convolutions</strong> has the same receptive field as <strong>one 7×7 convolution</strong> — but with:</p>
+<ul>
+<li><strong>27 params per filter</strong> instead of 49 (~45% fewer).</li>
+<li><strong>Three non-linearities</strong> instead of one → more expressive.</li>
+<li><strong>Easier to train</strong> than a single wide-kernel layer.</li>
+</ul>
+<h3 id="vggnet-2014-small-kernels-stacked-deep-legacy">Legacy</h3>
+<ul>
+<li>The &quot;stack of 3×3&quot; principle is now universal — every modern architecture uses it.</li>
+<li>VGG features are still a popular feature extractor for transfer learning, perceptual loss (style transfer, GANs), etc.</li>
+<li>The massive FC layers at the end became the first thing architects dropped. GoogLeNet and ResNet replaced them with global pooling.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="vggnet-2014-small-kernels-stacked-deep">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="googlenet-2014-parallel-operations-and-11-bottlenecks" data-num="04" data-title="GoogLeNet (2014) — &quot;parallel operations and 1×1 bottlenecks&quot;">
+<h2><span class="num">04</span> GoogLeNet (2014) — &quot;parallel operations and 1×1 bottlenecks&quot;</h2>
+<h3 id="googlenet-2014-parallel-operations-and-11-bottlenecks-the-inception-module">The Inception module</h3>
+<figure class="fig"><img src="images/out/19_famous_architectures-02.png" alt="An Inception module: four branches run in parallel on the same input and their outputs are concatenated along the channel axis. The 1 × 1 convolutions (green) shrink the channels before the expensive 3 × 3 and 5 × 5 convolutions." loading="lazy"><figcaption>An Inception module: four branches run in parallel on the same input and their outputs are concatenated along the channel axis. The 1 × 1 convolutions (green) shrink the channels before the expensive 3 × 3 and 5 × 5 convolutions.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+fig, ax = plt.subplots(figsize=(10, 4.6))
+def box(x, y, txt, c):
+    ax.add_patch(FancyBboxPatch((x - 0.9, y - 0.28), 1.8, 0.56, boxstyle=&quot;round,pad=0.04&quot;, fc=c, ec=&quot;#374151&quot;))
+    ax.text(x, y, txt, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9)
+def arrow(x0, y0, x1, y1):
+    ax.annotate(&quot;&quot;, (x1, y1), (x0, y0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#374151&quot;))
+box(4.5, 0, &quot;previous layer&quot;, &quot;#e5e7eb&quot;)
+cols = [(0.9, [(&quot;1×1 conv&quot;, &quot;#bbf7d0&quot;)]), (3.3, [(&quot;1×1 conv&quot;, &quot;#bbf7d0&quot;), (&quot;3×3 conv&quot;, &quot;#c7d2fe&quot;)]),
+        (5.7, [(&quot;1×1 conv&quot;, &quot;#bbf7d0&quot;), (&quot;5×5 conv&quot;, &quot;#c7d2fe&quot;)]), (8.1, [(&quot;3×3 max pool&quot;, &quot;#fde68a&quot;), (&quot;1×1 conv&quot;, &quot;#bbf7d0&quot;)])]
+for x, stack in cols:
+    ys = [1.2, 2.3][:len(stack)] if len(stack) == 2 else [1.75]
+    arrow(4.5, 0.3, x, ys[0] - 0.3)
+    for (txt, c), y in zip(stack, ys):
+        box(x, y, txt, c)
+    if len(stack) == 2: arrow(x, ys[0] + 0.28, x, ys[1] - 0.28)
+    arrow(x, ys[-1] + 0.28, 4.5, 3.25)
+box(4.5, 3.55, &quot;concatenate along channels&quot;, &quot;#fecaca&quot;)
+ax.set_xlim(-0.3, 9.3); ax.set_ylim(-0.5, 4.1); ax.axis(&quot;off&quot;); plt.show()</pre></div></details>
+<p>Instead of picking one kernel size per layer, the Inception module runs <strong>all common sizes in parallel</strong> and concatenates their outputs along the channel axis.</p>
+<p><strong>Why this helps</strong>: different features live at different scales. Edges want 3×3; blobs want 5×5; cross-channel mixing wants 1×1. Rather than pick one, do all four and let the next layer decide.</p>
+<h3 id="googlenet-2014-parallel-operations-and-11-bottlenecks-the-11-bottleneck">The 1×1 bottleneck</h3>
+<p>Naively running 3×3 and 5×5 convs on hundreds of input channels is prohibitively expensive. GoogLeNet uses <strong>1×1 convolutions as a bottleneck</strong> to compress the channel dimension <em>first</em>, then apply the expensive 3×3 / 5×5. Massive compute savings for minimal accuracy loss.</p>
+<p>The 1×1 conv has become a workhorse operation on its own — &quot;cheap channel mixing&quot; — used in ResNet bottlenecks, MobileNet, and almost every modern CNN.</p>
+<h3 id="googlenet-2014-parallel-operations-and-11-bottlenecks-full-architecture">Full architecture</h3>
+<ul>
+<li><strong>22 layers</strong> deep.</li>
+<li><strong>9 Inception modules</strong> stacked.</li>
+<li><strong>Global average pooling</strong> at the end instead of FC layers → massive param reduction.</li>
+<li><strong>~7M parameters</strong> — about 9× fewer than AlexNet and 20× fewer than VGG-16, with better accuracy than both.</li>
+</ul>
+<p>Successor versions: Inception v2, v3, v4, Inception-ResNet. All build on these two ideas.</p>
+<div class="donebar"><button class="donebtn" data-done="googlenet-2014-parallel-operations-and-11-bottlenecks">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="resnet-2015-skip-connections-make-it-trainable" data-num="05" data-title="ResNet (2015) — &quot;skip connections make it trainable&quot;">
+<h2><span class="num">05</span> ResNet (2015) — &quot;skip connections make it trainable&quot;</h2>
+<h3 id="resnet-2015-skip-connections-make-it-trainable-the-degradation-problem">The degradation problem</h3>
+<figure class="fig"><img src="images/out/19_famous_architectures-03.png" alt="A residual block. The input x goes through two weight layers to give F(x), and also around them unchanged (the identity shortcut); the two are added, then ReLU is applied. If the best thing a block can do is nothing, it only has to make F(x) = 0." loading="lazy"><figcaption>A residual block. The input x goes through two weight layers to give F(x), and also around them unchanged (the identity shortcut); the two are added, then ReLU is applied. If the best thing a block can do is nothing, it only has to make F(x) = 0.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch, Circle
+
+fig, ax = plt.subplots(figsize=(5.5, 5.6))
+def box(y, txt, c=&quot;#c7d2fe&quot;):
+    ax.add_patch(FancyBboxPatch((-1.0, y - 0.25), 2.0, 0.5, boxstyle=&quot;round,pad=0.04&quot;, fc=c, ec=&quot;#374151&quot;)); ax.text(0, y, txt, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=10)
+def arrow(x0, y0, x1, y1, **kw):
+    ax.annotate(&quot;&quot;, (x1, y1), (x0, y0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#374151&quot;, **kw))
+ax.text(0, 5.05, &quot;x&quot;, ha=&quot;center&quot;, fontsize=13)
+box(4.1, &quot;weight layer (3×3 conv + BN)&quot;); box(3.2, &quot;ReLU&quot;, &quot;#e5e7eb&quot;); box(2.3, &quot;weight layer (3×3 conv + BN)&quot;)
+arrow(0, 4.85, 0, 4.37); arrow(0, 3.83, 0, 3.47); arrow(0, 2.93, 0, 2.57); arrow(0, 2.03, 0, 1.58)
+ax.add_patch(Circle((0, 1.35), 0.22, fc=&quot;white&quot;, ec=&quot;#374151&quot;)); ax.text(0, 1.35, &quot;+&quot;, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=14)
+box(0.55, &quot;ReLU&quot;, &quot;#e5e7eb&quot;); arrow(0, 1.12, 0, 0.82); arrow(0, 0.28, 0, -0.1)
+ax.text(0, -0.35, &quot;F(x) + x&quot;, ha=&quot;center&quot;, fontsize=12)
+ax.plot([0.1, 1.9, 1.9, 0.25], [4.9, 4.9, 1.35, 1.35], color=&quot;#dc2626&quot;, lw=2)
+arrow(0.4, 1.35, 0.23, 1.35, lw=2)
+ax.text(2.05, 3.1, &quot;identity\nshortcut: x&quot;, color=&quot;#dc2626&quot;, fontsize=10, va=&quot;center&quot;)
+ax.text(-1.15, 3.2, &quot;F(x)&quot;, ha=&quot;right&quot;, fontsize=12, color=&quot;#4338ca&quot;)
+ax.set_xlim(-2.0, 3.2); ax.set_ylim(-0.6, 5.3); ax.axis(&quot;off&quot;); plt.show()</pre></div></details>
+<p>You can watch the shortcut work. The cell below builds a stack of 30 small layers, plain and residual, sends one batch through, and measures how big the gradient is at the <strong>first</strong> layer: the signal that has to travel back through all the others.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+
+class Block(nn.Module):
+    def __init__(self, width, residual):
+        super().__init__()
+        self.f = nn.Sequential(nn.Linear(width, width), nn.Tanh(), nn.Linear(width, width))
+        self.residual = residual
+    def forward(self, x):
+        return torch.tanh(self.f(x) + x) if self.residual else torch.tanh(self.f(x))
+
+def first_layer_grad(residual, depth=30, width=64, seed=0):
+    torch.manual_seed(seed)
+    net = nn.Sequential(*[Block(width, residual) for _ in range(depth)])
+    x = torch.randn(128, width)
+    net(x).pow(2).mean().backward()
+    return net[0].f[0].weight.grad.norm().item()
+
+for depth in (5, 15, 30):
+    print(f&quot;depth {depth:2d}: gradient at layer 1 — plain {first_layer_grad(False, depth):.2e}   residual {first_layer_grad(True, depth):.2e}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>depth  5: gradient at layer 1 — plain 8.15e-05   residual 1.37e-02
+depth 15: gradient at layer 1 — plain 9.64e-10   residual 9.29e-03
+depth 30: gradient at layer 1 — plain 3.73e-17   residual 7.16e-03</pre></div></div></div>
+<p>In the plain stack the gradient reaching layer 1 shrinks by orders of magnitude as depth grows (the vanishing gradients of note 07); with shortcuts it stays usable, because the gradient has a path that skips every weight layer.</p>
+<p>Pre-ResNet, researchers found that beyond ~20 layers, deeper networks performed <em>worse</em> — even on training data. This wasn't overfitting; it was an optimisation problem. Something about very deep stacks of plain layers made them impossible to train.</p>
+<h3 id="resnet-2015-skip-connections-make-it-trainable-the-residual-block">The residual block</h3>
+<p>The ResNet fix: a layer should learn a <strong>residual</strong> <span class="tex">F(x)</span> to add to its input <span class="tex">x</span>, rather than the full transformation <span class="tex">H(x) = x + F(x)</span>:</p>
+<div class="tex-d">y \;=\; F(x) \;+\; x</div>
+<p>The <code>+ x</code> is the <strong>skip connection</strong> (or shortcut).</p>
+<p><strong>Why this works</strong>:</p>
+<ul>
+<li>To learn an identity mapping (which should be trivially easy), the layer only needs to drive <span class="tex">F(x) \to 0</span>. Much easier than driving <span class="tex">H(x) \to x</span> from scratch.</li>
+<li>Gradients have a direct path backward through the skip connection — no vanishing in deep stacks.</li>
+<li>Networks of 100, 152, 200+ layers now train stably.</li>
+</ul>
+<h3 id="resnet-2015-skip-connections-make-it-trainable-full-architecture">Full architecture</h3>
+<p>Standard ResNet variants:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Variant</th>
+<th style="text-align:center">Layers</th>
+<th style="text-align:center">Parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">ResNet-18</td>
+<td style="text-align:center">18</td>
+<td style="text-align:center">11.7M</td>
+</tr>
+<tr>
+<td style="text-align:left">ResNet-34</td>
+<td style="text-align:center">34</td>
+<td style="text-align:center">21.8M</td>
+</tr>
+<tr>
+<td style="text-align:left">ResNet-50</td>
+<td style="text-align:center">50</td>
+<td style="text-align:center">25.6M</td>
+</tr>
+<tr>
+<td style="text-align:left">ResNet-101</td>
+<td style="text-align:center">101</td>
+<td style="text-align:center">44.5M</td>
+</tr>
+<tr>
+<td style="text-align:left">ResNet-152</td>
+<td style="text-align:center">152</td>
+<td style="text-align:center">60.2M</td>
+</tr>
+</tbody>
+</table></div>
+<p>ResNet-50 is the industry default — a strong starting point for almost any image task via transfer learning (<a href="../d5-projects/22_transfer_learning.html">note 22</a> does exactly this).</p>
+<h3 id="resnet-2015-skip-connections-make-it-trainable-why-residual-connections-are-everywhere-now">Why residual connections are everywhere now</h3>
+<p>The skip-connection idea extends far beyond ResNet:</p>
+<ul>
+<li><strong>DenseNet</strong> — every layer connected to every other.</li>
+<li><strong>U-Net</strong> — skip connections between encoder and decoder (used in segmentation and diffusion models).</li>
+<li><strong>Transformers</strong> — every attention and FFN block has a residual connection around it.</li>
+</ul>
+<p>Skip connections are the most-copied idea from ResNet; arguably more influential than the architecture itself.</p>
+<div class="donebar"><button class="donebtn" data-done="resnet-2015-skip-connections-make-it-trainable">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="comparison-table" data-num="06" data-title="Comparison table">
+<h2><span class="num">06</span> Comparison table</h2>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Model</th>
+<th style="text-align:center">Year</th>
+<th style="text-align:center">Layers</th>
+<th style="text-align:center">Parameters</th>
+<th style="text-align:center">Top-5 Error</th>
+<th style="text-align:left">Key idea</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>AlexNet</strong></td>
+<td style="text-align:center">2012</td>
+<td style="text-align:center">8</td>
+<td style="text-align:center">60M</td>
+<td style="text-align:center">15.3%</td>
+<td style="text-align:left">Deep + ReLU + GPU training</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>VGG-16</strong></td>
+<td style="text-align:center">2014</td>
+<td style="text-align:center">16</td>
+<td style="text-align:center">138M</td>
+<td style="text-align:center">7.3%</td>
+<td style="text-align:left">Stacked 3×3 kernels</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>GoogLeNet</strong></td>
+<td style="text-align:center">2014</td>
+<td style="text-align:center">22</td>
+<td style="text-align:center">7M</td>
+<td style="text-align:center">6.7%</td>
+<td style="text-align:left">Inception module + 1×1 bottleneck</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>ResNet-50</strong></td>
+<td style="text-align:center">2015</td>
+<td style="text-align:center">50</td>
+<td style="text-align:center">25.6M</td>
+<td style="text-align:center">5.3%</td>
+<td style="text-align:left">Residual connections</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>ResNet-152</strong></td>
+<td style="text-align:center">2015</td>
+<td style="text-align:center">152</td>
+<td style="text-align:center">60M</td>
+<td style="text-align:center">3.6%</td>
+<td style="text-align:left">More ResNet</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="comparison-table-patterns-across-the-four">Patterns across the four</h3>
+<ul>
+<li><strong>Depth increases</strong> at every milestone (8 → 16 → 22 → 50+).</li>
+<li><strong>FC layers shrink</strong> or disappear (AlexNet/VGG have huge FC; GoogLeNet/ResNet replace them with global pooling).</li>
+<li><strong>Kernels shrink</strong> — AlexNet's 11×11 and 5×5 give way to pure 3×3 and 1×1.</li>
+<li><strong>Parameter efficiency improves</strong> — GoogLeNet is about 20× smaller than VGG-16 with better accuracy.</li>
+<li><strong>Training-time tricks</strong> — ReLU, dropout, BN, residual connections, LR warm-up.</li>
+</ul>
+<h3 id="comparison-table-what-came-next">What came next</h3>
+<p>Post-2017 architectures mostly refine or combine these ideas:</p>
+<ul>
+<li><strong>DenseNet</strong> (2016) — dense skip connections.</li>
+<li><strong>MobileNet / EfficientNet</strong> (2017-19) — depthwise-separable convs for mobile deployment.</li>
+<li><strong>Vision Transformer</strong> (2020) — replaces conv backbone with attention entirely.</li>
+<li><strong>ConvNeXt</strong> (2022) — takes transformer design lessons back to CNNs. Still competitive.</li>
+</ul>
+<p>The CNN architecture era peaked around 2017; transformers now dominate large-scale vision. But every modern CNN still rests on the four architectures in this note.</p>
+<div class="donebar"><button class="donebtn" data-done="comparison-table">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-load-pretrained-models-and-inspect" data-num="07" data-title="Runnable demo — load pretrained models and inspect">
+<h2><span class="num">07</span> Runnable demo — load pretrained models and inspect</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+from torchvision import models
+
+# All four classic architectures, pretrained on ImageNet
+model_configs = [
+    (&#x27;AlexNet&#x27;,     models.alexnet,     models.AlexNet_Weights.IMAGENET1K_V1),
+    (&#x27;VGG-16&#x27;,      models.vgg16,       models.VGG16_Weights.IMAGENET1K_V1),
+    (&#x27;GoogLeNet&#x27;,   models.googlenet,   models.GoogLeNet_Weights.IMAGENET1K_V1),
+    (&#x27;ResNet-50&#x27;,   models.resnet50,    models.ResNet50_Weights.IMAGENET1K_V2),
+]
+
+print(f&quot;{&#x27;Model&#x27;:&lt;12} {&#x27;Params&#x27;:&gt;14} {&#x27;Conv + Linear modules&#x27;:&gt;22}&quot;)
+print(&#x27;-&#x27; * 50)
+for name, factory, weights in model_configs:
+    # weights=None: just the architecture, no download. GoogLeNet&#x27;s two auxiliary training-only classifiers
+    # (aux_logits) are left out, as at inference time; with them it has 13M parameters.
+    m = factory(weights=None, aux_logits=False, init_weights=False) if name == &quot;GoogLeNet&quot; else factory(weights=None)
+    p = sum(p.numel() for p in m.parameters())
+    layers = sum(1 for _ in m.modules() if any(isinstance(_, L) for L in (torch.nn.Conv2d, torch.nn.Linear)))
+    print(f&quot;{name:&lt;12} {p:&gt;14,} {layers:&gt;22}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Model                Params  Conv + Linear modules
+--------------------------------------------------
+AlexNet          61,100,840                      8
+VGG-16          138,357,544                     16
+GoogLeNet         6,624,904                     58
+ResNet-50        25,557,032                     54</pre></div></div></div>
+<p>The last column counts every convolution and linear module, which is more than the &quot;depth&quot; quoted in the papers: GoogLeNet is 22 layers deep along its longest path, but its parallel Inception branches hold 57 convolutions, and ResNet-50's count includes the 1×1 shortcut convolutions.</p>
+<h3 id="runnable-demo-load-pretrained-models-and-inspect-peek-at-a-resnet-residual-block">Peek at a ResNet residual block</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">resnet = models.resnet50(weights=None)
+block = resnet.layer1[0]
+print(f&quot;First residual block of ResNet-50:\n{block}&quot;)
+print(f&quot;\n(The shortcut: `downsample`, a 1×1 conv + BN, reshapes x so it can be added to the output of the 3 convs)&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>First residual block of ResNet-50:
+Bottleneck(
+  (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+  (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+  (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  (relu): ReLU(inplace=True)
+  (downsample): Sequential(
+    (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+  )
+)
+
+(The shortcut: `downsample`, a 1×1 conv + BN, reshapes x so it can be added to the output of the 3 convs)</pre></div></div></div>
+<h3 id="runnable-demo-load-pretrained-models-and-inspect-peek-at-an-inception-module">Peek at an Inception module</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">googlenet = models.googlenet(weights=None, aux_logits=False, init_weights=False)
+inception = googlenet.inception3a
+print(f&quot;GoogLeNet&#x27;s first Inception module:\n{inception}&quot;)
+print(f&quot;\n(Four parallel branches: 1x1 / 1x1-3x3 / 1x1-5x5 / pool-1x1)&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>GoogLeNet&#x27;s first Inception module:
+Inception(
+  (branch1): BasicConv2d(
+    (conv): Conv2d(192, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    (bn): BatchNorm2d(64, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+  )
+  (branch2): Sequential(
+    (0): BasicConv2d(
+      (conv): Conv2d(192, 96, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNorm2d(96, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (1): BasicConv2d(
+      (conv): Conv2d(96, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): BatchNorm2d(128, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+  (branch3): Sequential(
+    (0): BasicConv2d(
+      (conv): Conv2d(192, 16, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNorm2d(16, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+    )
+    (1): BasicConv2d(
+      (conv): Conv2d(16, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): BatchNorm2d(32, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+  (branch4): Sequential(
+    (0): MaxPool2d(kernel_size=3, stride=1, padding=1, dilation=1, ceil_mode=True)
+    (1): BasicConv2d(
+      (conv): Conv2d(192, 32, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      (bn): BatchNorm2d(32, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+    )
+  )
+)
+
+(Four parallel branches: 1x1 / 1x1-3x3 / 1x1-5x5 / pool-1x1)</pre></div></div></div>
+<h3 id="runnable-demo-load-pretrained-models-and-inspect-the-takeaway">The takeaway</h3>
+<p>Modern frameworks ship these architectures as one-liners. You rarely implement them from scratch — the point of knowing them is to <strong>recognise which ideas you're using when you reach for a pretrained model</strong> or when you read a paper.</p>
+<p>Transfer learning from a pretrained ResNet is the subject of <a href="../d5-projects/22_transfer_learning.html">note 22</a>.</p>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-load-pretrained-models-and-inspect">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="18_building_and_training_a_cnn.html"><small>← Previous</small>Assembling and Training a CNN</a><a class="next" href="index.html"><small>Back to →</small>Convolutional Networks index</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

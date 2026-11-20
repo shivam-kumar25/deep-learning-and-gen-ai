@@ -9,6 +9,7 @@ study notes in `notes/`, read through **Studyloom**, a small web app whose code 
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r tools/kernel/requirements.txt --index-url https://download.pytorch.org/whl/cu128 --extra-index-url https://pypi.org/simple
+python tools/setup_data.py   # datasets the notes use → workspace/data (copied from the project folders)
 npm install
 npm run build
 npm start                 # http://localhost:4300

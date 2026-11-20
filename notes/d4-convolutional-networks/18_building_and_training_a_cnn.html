@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assembling and Training a CNN · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="18_building_and_training_a_cnn">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Assembling and Training a CNN</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">CNNs · note 18</div><h1>Assembling and Training a CNN</h1><div class="lead"><p>Everything comes together. The typical architecture pattern, data augmentation, and a complete CNN trained on Fashion-MNIST on this computer's GPU, with the shape of the data written down at every layer, the predictions, and what the trained filters and feature maps look like.</p>
+</div></div>
+<section class="sec" id="the-typical-cnn-pattern" data-num="01" data-title="The typical CNN pattern">
+<h2><span class="num">01</span> The typical CNN pattern</h2>
+<figure class="fig"><img src="images/out/18_building_and_training_a_cnn-01.png" alt="A typical CNN. The convolutional base repeats Conv → BatchNorm → ReLU → Pool, shrinking the image while adding channels; the classifier head flattens the final maps and maps them to one score per class." loading="lazy"><figcaption>A typical CNN. The convolutional base repeats Conv → BatchNorm → ReLU → Pool, shrinking the image while adding channels; the classifier head flattens the final maps and maps them to one score per class.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+blocks = [(&quot;input\n1×28×28&quot;, &quot;#e5e7eb&quot;), (&quot;conv block 1\n32×14×14&quot;, &quot;#c7d2fe&quot;), (&quot;conv block 2\n64×7×7&quot;, &quot;#c7d2fe&quot;), (&quot;conv block 3\n128×3×3&quot;, &quot;#c7d2fe&quot;),
+          (&quot;flatten\n1152&quot;, &quot;#fde68a&quot;), (&quot;dense + ReLU\n+ dropout\n128&quot;, &quot;#fde68a&quot;), (&quot;dense\n10 logits&quot;, &quot;#bbf7d0&quot;)]
+fig, ax = plt.subplots(figsize=(13, 3.2))
+for i, (txt, c) in enumerate(blocks):
+    ax.add_patch(FancyBboxPatch((i * 1.85, 0), 1.5, 1.2, boxstyle=&quot;round,pad=0.05&quot;, fc=c, ec=&quot;#374151&quot;))
+    ax.text(i * 1.85 + 0.75, 0.6, txt, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9)
+    if i &lt; len(blocks) - 1:
+        ax.annotate(&quot;&quot;, (i * 1.85 + 1.82, 0.6), (i * 1.85 + 1.58, 0.6), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;))
+ax.text(3.6, 1.65, &quot;convolutional base: feature extraction&quot;, ha=&quot;center&quot;, fontsize=10, color=&quot;#4338ca&quot;)
+ax.plot([1.7, 7.15], [1.45, 1.45], color=&quot;#4338ca&quot;, lw=2)
+ax.text(10.1, 1.65, &quot;classifier head&quot;, ha=&quot;center&quot;, fontsize=10, color=&quot;#a16207&quot;)
+ax.plot([7.3, 12.6], [1.45, 1.45], color=&quot;#a16207&quot;, lw=2)
+ax.text(3.6, -0.45, &quot;each conv block = Conv2d(3×3, padding=1) → BatchNorm2d → ReLU → MaxPool2d(2)&quot;, ha=&quot;center&quot;, fontsize=9, family=&quot;monospace&quot;)
+ax.set_xlim(-0.2, 13); ax.set_ylim(-0.8, 2.0); ax.axis(&quot;off&quot;); plt.show()</pre></div></details>
+<h3 id="the-typical-cnn-pattern-two-halves-of-a-cnn">Two halves of a CNN</h3>
+<ul>
+<li><strong>Convolutional base (feature extractor)</strong>: repeated blocks of <code>Conv → BN → ReLU → Pool</code>. Spatial dimensions shrink; channel depth grows. The output is a stack of learned feature maps.</li>
+<li><strong>Classifier head</strong>: <code>Flatten → Dense → Dropout → Dense</code>. Takes the final feature maps and maps them to one score (logit) per class. The softmax is left to <code>nn.CrossEntropyLoss</code> (note 12), and to <code>argmax</code> at prediction time.</li>
+</ul>
+<h3 id="the-typical-cnn-pattern-the-canonical-block">The canonical block</h3>
+<p>The repeated unit of a modern CNN:</p>
+<div class="codewrap"><pre class="code" data-lang="text">Conv2d(c_in, c_out, kernel_size=3, padding=1)
+BatchNorm2d(c_out)
+ReLU()
+# maybe:
+Dropout2d(p=0.1)
+# then:
+MaxPool2d(2)      # or stride-2 conv instead</pre></div>
+<p>Four to six of these blocks is typical. Each roughly doubles channel depth and halves spatial dimensions.</p>
+<h3 id="the-typical-cnn-pattern-the-60-second-architecture-recipe">The 60-second architecture recipe</h3>
+<p>For a modest classification task like Fashion-MNIST:</p>
+<ol>
+<li>Start with 32 filters. Double every block.</li>
+<li>Use 3×3 conv, <code>padding=1</code>, stride 1.</li>
+<li>BatchNorm after every conv.</li>
+<li>MaxPool 2×2 after every 1-2 convs.</li>
+<li>End with global average pool or flatten → dense(128) → dropout → dense(num_classes).</li>
+</ol>
+<p>That recipe gets you to ~90% on Fashion-MNIST without any tuning.</p>
+<div class="donebar"><button class="donebtn" data-done="the-typical-cnn-pattern">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="data-augmentation-for-images" data-num="02" data-title="Data augmentation for images">
+<h2><span class="num">02</span> Data augmentation for images</h2>
+<h3 id="data-augmentation-for-images-why-augment">Why augment</h3>
+<ul>
+<li><strong>Prevent overfitting</strong> — CNNs can memorise small datasets; augmentation forces generalisation.</li>
+<li><strong>Teach invariance</strong> — a cat is still a cat if flipped, rotated, or shifted. Augmentation bakes that in.</li>
+<li><strong>Combat data scarcity</strong> — labelled data is expensive; augmentation multiplies it for free.</li>
+</ul>
+<h3 id="data-augmentation-for-images-common-techniques">Common techniques</h3>
+<figure class="fig"><img src="images/out/18_building_and_training_a_cnn-02.png" alt="One training image, six random augmentations from torchvision.transforms. Every epoch the model sees a different variant of each image, so it cannot memorise the exact pixels, and it learns that the label survives flips, small rotations, crops and erased patches." loading="lazy"><figcaption>One training image, six random augmentations from torchvision.transforms. Every epoch the model sees a different variant of each image, so it cannot memorise the exact pixels, and it learns that the label survives flips, small rotations, crops and erased patches.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import matplotlib.pyplot as plt
+from torchvision import datasets, transforms
+
+img, label = datasets.FashionMNIST(root=&quot;data&quot;, train=True, download=False)[0]
+augs = {&quot;horizontal flip&quot;: transforms.RandomHorizontalFlip(p=1.0), &quot;rotate ±20°&quot;: transforms.RandomRotation(20),
+        &quot;random resized crop&quot;: transforms.RandomResizedCrop(28, scale=(0.6, 1.0)), &quot;brightness/contrast&quot;: transforms.ColorJitter(0.5, 0.5),
+        &quot;shift (affine)&quot;: transforms.RandomAffine(0, translate=(0.15, 0.15)),
+        &quot;random erasing&quot;: transforms.Compose([transforms.ToTensor(), transforms.RandomErasing(p=1.0, scale=(0.05, 0.15)), transforms.ToPILImage()])}
+torch.manual_seed(1)
+fig, axes = plt.subplots(1, 7, figsize=(15, 2.6))
+axes[0].imshow(img, cmap=&quot;gray&quot;); axes[0].set_title(&quot;original&quot;, fontsize=9)
+for ax, (name, tf) in zip(axes[1:], augs.items()):
+    ax.imshow(tf(img), cmap=&quot;gray&quot;); ax.set_title(name, fontsize=9)
+for ax in axes: ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Technique</th>
+<th style="text-align:left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Random horizontal flip</strong></td>
+<td style="text-align:left">Mirror left/right. Safe for most natural images</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Random rotation</strong></td>
+<td style="text-align:left">Rotate by a few degrees. Teaches rotational robustness</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Random crop + resize</strong></td>
+<td style="text-align:left">Crop a region, resize. The ImageNet workhorse</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Colour jitter</strong></td>
+<td style="text-align:left">Adjust brightness, contrast, saturation</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Random erasing / Cutout</strong></td>
+<td style="text-align:left">Blank out a random rectangle. Forces the model to use the whole image</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="data-augmentation-for-images-the-one-rule">The one rule</h3>
+<p><strong>Only augment the training set.</strong> Validation and test must be unmodified so your metric reflects true inference-time behaviour.</p>
+<p>In PyTorch, augmentations are <code>torchvision.transforms</code> applied when each image is loaded, so every epoch draws new random variants; the training cell below uses <code>RandomHorizontalFlip</code>.</p>
+<div class="donebar"><button class="donebtn" data-done="data-augmentation-for-images">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-fashion-mnist-task" data-num="03" data-title="The Fashion-MNIST task">
+<h2><span class="num">03</span> The Fashion-MNIST task</h2>
+<h3 id="the-fashion-mnist-task-the-dataset">The dataset</h3>
+<ul>
+<li><strong>60,000 training</strong> + <strong>10,000 test</strong> images.</li>
+<li><strong>Grayscale, 28×28</strong> pixels.</li>
+<li><strong>10 classes</strong>: T-shirt/top, Trouser, Pullover, Dress, Coat, Sandal, Shirt, Sneaker, Bag, Ankle boot.</li>
+</ul>
+<p>A drop-in replacement for MNIST (same size and format) that is much harder: on MNIST digits even a small CNN reaches 99%+, which no longer tells models apart. On Fashion-MNIST the best models reach about 96%, and a basic CNN reaches about 90% within a few epochs.</p>
+<h3 id="the-fashion-mnist-task-the-architecture-used-below">The architecture used below</h3>
+<div class="codewrap"><pre class="code" data-lang="text">Input (1, 28, 28)
+  → Conv(32) → ReLU → MaxPool  → (32, 14, 14)
+  → Conv(64) → ReLU → MaxPool  → (64, 7, 7)
+  → Conv(128) → ReLU → MaxPool → (128, 3, 3)
+  → Flatten                     → (1152,)
+  → Dense(128) → ReLU → Dropout → (128,)
+  → Dense(10)                   → (10,)   (logits)</pre></div>
+<p>Three conv blocks + two dense layers. Modest, trainable in minutes.</p>
+<div class="donebar"><button class="donebtn" data-done="the-fashion-mnist-task">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="cnn-data-flow-and-feature-hierarchy" data-num="04" data-title="CNN data flow and feature hierarchy">
+<h2><span class="num">04</span> CNN data flow and feature hierarchy</h2>
+<h3 id="cnn-data-flow-and-feature-hierarchy-shape-bookkeeping">Shape bookkeeping</h3>
+<p>The single most useful habit in CNN development: <strong>write down the output shape after every layer</strong>.</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Layer</th>
+<th style="text-align:left">Operation</th>
+<th style="text-align:left">Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Input</td>
+<td style="text-align:left">raw image</td>
+<td style="text-align:left"><code>(1, 28, 28)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Conv1 + Pool1</td>
+<td style="text-align:left">32 filters, 2×2 pool</td>
+<td style="text-align:left"><code>(32, 14, 14)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Conv2 + Pool2</td>
+<td style="text-align:left">64 filters, 2×2 pool</td>
+<td style="text-align:left"><code>(64, 7, 7)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Conv3 + Pool3</td>
+<td style="text-align:left">128 filters, 2×2 pool</td>
+<td style="text-align:left"><code>(128, 3, 3)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Flatten</td>
+<td style="text-align:left">reshape</td>
+<td style="text-align:left"><code>(1152,)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">FC + Dropout</td>
+<td style="text-align:left">dense 1152 → 128</td>
+<td style="text-align:left"><code>(128,)</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Output</td>
+<td style="text-align:left">dense 128 → 10</td>
+<td style="text-align:left"><code>(10,)</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Keep this table next to the code. When something breaks, it's almost always because this table says one thing and your <code>nn.Linear(in_features=…)</code> says another.</p>
+<h3 id="cnn-data-flow-and-feature-hierarchy-hierarchical-feature-learning">Hierarchical feature learning</h3>
+<p>The feature-level progression that <em>emerges</em> through training:</p>
+<ul>
+<li><strong>Early layers (Conv1)</strong> — oriented edges, colour patches.</li>
+<li><strong>Middle layers (Conv2)</strong> — textures, simple shapes.</li>
+<li><strong>Deep layers (Conv3)</strong> — object parts (collar, sleeve, lace).</li>
+<li><strong>FC layers</strong> — combines parts for the final classification.</li>
+</ul>
+<p>Nobody designs this hierarchy. It falls out of training a CNN with gradient descent on labelled images.</p>
+<div class="donebar"><button class="donebtn" data-done="cnn-data-flow-and-feature-hierarchy">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="training-process-and-results" data-num="05" data-title="Training process and results">
+<h2><span class="num">05</span> Training process and results</h2>
+<h3 id="training-process-and-results-standard-training-setup">Standard training setup</h3>
+<ul>
+<li><strong>Dataset:</strong> Fashion-MNIST, 60k train / 10k test.</li>
+<li><strong>Preprocessing:</strong> normalise pixels to [0, 1] (then optionally mean-subtract).</li>
+<li><strong>Batch size:</strong> 64 (power of 2, fits comfortably in memory).</li>
+<li><strong>Epochs:</strong> 5 for a demo. 20-30 for real training.</li>
+<li><strong>Optimiser:</strong> Adam, learning rate 1e-3.</li>
+<li><strong>Loss:</strong> CrossEntropyLoss (combines log-softmax + NLL).</li>
+</ul>
+<h3 id="training-process-and-results-expected-outcomes">Expected outcomes</h3>
+<ul>
+<li><strong>Total params:</strong> about 240k (the cell below prints the exact number), most of them in the first dense layer (1152 × 128). The three conv layers together need under 100k.</li>
+<li><strong>Training accuracy:</strong> improves each epoch to 90-95%.</li>
+<li><strong>Test accuracy:</strong> 85-90% in 5 epochs. 92-94% with more epochs, augmentation, and tuning.</li>
+</ul>
+<h3 id="training-process-and-results-if-training-doesnt-work">If training doesn't work</h3>
+<p>Common failure modes to check:</p>
+<ul>
+<li><strong>Loss not decreasing</strong> → Learning rate too high (loss explodes) or too low (nothing moves).</li>
+<li><strong>Train accuracy high, test accuracy low</strong> → Overfitting. Add augmentation, dropout, or regularisation.</li>
+<li><strong>Both low</strong> → Model too small, or input preprocessing wrong, or the task genuinely needs more capacity.</li>
+<li><strong>Loss is NaN</strong> → Learning rate too high, bad initialisation, or input not normalised.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="training-process-and-results">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-train-a-cnn-end-to-end" data-num="06" data-title="Runnable demo — train a CNN end-to-end">
+<h2><span class="num">06</span> Runnable demo — train a CNN end-to-end</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.utils.data import DataLoader
+import torchvision
+from torchvision import datasets, transforms
+
+device = torch.device(&#x27;cuda&#x27; if torch.cuda.is_available() else &#x27;cpu&#x27;)
+print(f&quot;device: {device}&quot;)
+
+# Transforms: convert to tensor (puts pixels in [0,1]) and normalise
+train_tfm = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,)),
+])
+test_tfm = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,)),
+])
+
+# Fashion-MNIST
+# workspace/data/FashionMNIST (copied there by tools/setup_data.py): nothing is downloaded
+train_ds = datasets.FashionMNIST(&#x27;data&#x27;, train=True,  download=False, transform=train_tfm)
+test_ds  = datasets.FashionMNIST(&#x27;data&#x27;, train=False, download=False, transform=test_tfm)
+
+train_loader = DataLoader(train_ds, batch_size=64, shuffle=True)
+test_loader  = DataLoader(test_ds,  batch_size=256, shuffle=False)
+
+classes = [&#x27;T-shirt/top&#x27;,&#x27;Trouser&#x27;,&#x27;Pullover&#x27;,&#x27;Dress&#x27;,&#x27;Coat&#x27;,
+           &#x27;Sandal&#x27;,&#x27;Shirt&#x27;,&#x27;Sneaker&#x27;,&#x27;Bag&#x27;,&#x27;Ankle boot&#x27;]
+print(f&quot;train: {len(train_ds)}, test: {len(test_ds)}, classes: {len(classes)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>device: cuda
+train: 60000, test: 10000, classes: 10</pre></div></div></div>
+<h3 id="runnable-demo-train-a-cnn-end-to-end-define-the-cnn">Define the CNN</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">class SimpleCNN(nn.Module):
+    def __init__(self, num_classes=10):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1),   # (1,28,28)  -&gt; (32,28,28)
+            nn.BatchNorm2d(32), nn.ReLU(),
+            nn.MaxPool2d(2),                   #            -&gt; (32,14,14)
+
+            nn.Conv2d(32, 64, 3, padding=1),  #            -&gt; (64,14,14)
+            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.MaxPool2d(2),                   #            -&gt; (64, 7, 7)
+
+            nn.Conv2d(64, 128, 3, padding=1), #            -&gt; (128,7,7)
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.MaxPool2d(2),                   #            -&gt; (128,3,3)
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(128*3*3, 128),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(128, num_classes),
+        )
+
+    def forward(self, x):
+        return self.classifier(self.features(x))
+
+model = SimpleCNN().to(device)
+print(model)
+print(f&quot;\nparameters: {sum(p.numel() for p in model.parameters()):,}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>SimpleCNN(
+  (features): Sequential(
+    (0): Conv2d(1, 32, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (1): BatchNorm2d(32, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (2): ReLU()
+    (3): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (4): Conv2d(32, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (5): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (6): ReLU()
+    (7): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    (8): Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    (9): BatchNorm2d(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (10): ReLU()
+    (11): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+  )
+  (classifier): Sequential(
+    (0): Flatten(start_dim=1, end_dim=-1)
+    (1): Linear(in_features=1152, out_features=128, bias=True)
+    (2): ReLU()
+    (3): Dropout(p=0.5, inplace=False)
+    (4): Linear(in_features=128, out_features=10, bias=True)
+  )
+)
+
+parameters: 241,994</pre></div></div></div>
+<h3 id="runnable-demo-train-a-cnn-end-to-end-training-loop">Training loop</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">optim  = torch.optim.Adam(model.parameters(), lr=1e-3)
+loss_fn = nn.CrossEntropyLoss()
+
+def train_one_epoch():
+    model.train()
+    total, correct, running_loss = 0, 0, 0.0
+    for x, y in train_loader:
+        x, y = x.to(device), y.to(device)
+        logits = model(x)
+        loss = loss_fn(logits, y)
+        optim.zero_grad(); loss.backward(); optim.step()
+        running_loss += loss.item() * x.size(0)
+        correct += (logits.argmax(1) == y).sum().item()
+        total   += x.size(0)
+    return running_loss / total, correct / total
+
+def evaluate():
+    model.eval()
+    total, correct = 0, 0
+    with torch.no_grad():
+        for x, y in test_loader:
+            x, y = x.to(device), y.to(device)
+            logits = model(x)
+            correct += (logits.argmax(1) == y).sum().item()
+            total   += x.size(0)
+    return correct / total
+
+EPOCHS = 3   # keep small for a demo; try 10+ for real
+for epoch in range(1, EPOCHS + 1):
+    tr_loss, tr_acc = train_one_epoch()
+    te_acc = evaluate()
+    print(f&quot;epoch {epoch}: train loss={tr_loss:.4f}  train acc={tr_acc:.4f}  test acc={te_acc:.4f}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>epoch 1: train loss=0.4956  train acc=0.8253  test acc=0.8693
+epoch 2: train loss=0.3306  train acc=0.8824  test acc=0.9011
+epoch 3: train loss=0.2878  train acc=0.8979  test acc=0.9031</pre></div></div></div>
+<h3 id="runnable-demo-train-a-cnn-end-to-end-prediction-demo">Prediction demo</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+
+model.eval()
+x, y = next(iter(test_loader))
+x_dev, y_dev = x.to(device), y.to(device)
+with torch.inference_mode():
+    preds = model(x_dev).argmax(1).cpu()
+
+fig, axes = plt.subplots(2, 5, figsize=(12, 5))
+for i, ax in enumerate(axes.flat):
+    img = x[i, 0].numpy() * 0.5 + 0.5
+    color = &#x27;green&#x27; if preds[i] == y[i] else &#x27;red&#x27;
+    ax.imshow(img, cmap=&#x27;gray&#x27;)
+    ax.set_title(f&#x27;pred: {classes[preds[i]]}\ntrue: {classes[y[i]]}&#x27;, color=color, fontsize=9)
+    ax.axis(&#x27;off&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/18_building_and_training_a_cnn-03.png" alt="plot" loading="lazy"></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-train-a-cnn-end-to-end">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="visualising-filters-and-feature-maps" data-num="07" data-title="Visualising filters and feature maps">
+<h2><span class="num">07</span> Visualising filters and feature maps</h2>
+<h3 id="visualising-filters-and-feature-maps-first-layer-filters">First-layer filters</h3>
+<p>Looking at the learned 3×3 kernels of the first conv layer. For a trained CNN, these converge to edge- and blob-detectors.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Grab Conv1 filters: shape (32, 1, 3, 3)
+w = model.features[0].weight.detach().cpu()
+print(f&quot;Conv1 weight shape: {tuple(w.shape)}&quot;)
+
+# Normalise each filter to [0, 1] for visualisation
+def norm(x):
+    x = x - x.min()
+    return x / (x.max() + 1e-8)
+
+fig, axes = plt.subplots(4, 8, figsize=(12, 6))
+for i, ax in enumerate(axes.flat):
+    ax.imshow(norm(w[i, 0]), cmap=&#x27;gray&#x27;)
+    ax.axis(&#x27;off&#x27;)
+plt.suptitle(&#x27;Learned first-layer filters (32 total)&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Conv1 weight shape: (32, 1, 3, 3)</pre></div><div class="orow plot"><img src="images/out/18_building_and_training_a_cnn-04.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="visualising-filters-and-feature-maps-feature-maps-on-one-image">Feature maps on one image</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Hook the activations of the first conv block
+feature_map = None
+def hook(module, input, output):
+    global feature_map
+    feature_map = output
+
+h = model.features[0].register_forward_hook(hook)
+
+# Push one image through
+x_one = x[0:1].to(device)
+_ = model(x_one)
+h.remove()
+
+fmap = feature_map.detach().cpu()[0]
+print(f&quot;feature map shape: {tuple(fmap.shape)}&quot;)
+
+fig, axes = plt.subplots(4, 8, figsize=(14, 7))
+axes[0, 0].imshow(x[0, 0] * 0.5 + 0.5, cmap=&#x27;gray&#x27;); axes[0, 0].set_title(&#x27;input&#x27;, fontsize=9)
+axes[0, 0].axis(&#x27;off&#x27;)
+for i, ax in enumerate(axes.flat):
+    if i == 0: continue
+    if i - 1 &lt; fmap.shape[0]:
+        ax.imshow(fmap[i - 1], cmap=&#x27;viridis&#x27;)
+        ax.set_title(f&#x27;feat {i-1}&#x27;, fontsize=8)
+    ax.axis(&#x27;off&#x27;)
+plt.suptitle(&#x27;Feature maps from Conv1 (32 channels on one input)&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>feature map shape: (32, 28, 28)</pre></div><div class="orow plot"><img src="images/out/18_building_and_training_a_cnn-05.png" alt="plot" loading="lazy"></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="visualising-filters-and-feature-maps">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="17_batch_norm_and_dropout.html"><small>← Previous</small>Batch Normalisation &amp; Dropout</a><a class="next" href="19_famous_architectures.html"><small>Next →</small>Famous CNN Architectures</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

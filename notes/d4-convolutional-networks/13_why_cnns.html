@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why Do We Need CNNs? · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="13_why_cnns">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Why Do We Need CNNs?</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">CNNs · note 13</div><h1>Why Do We Need CNNs?</h1><div class="lead"><p>Images are high-dimensional, spatially structured, and their content can sit anywhere in the frame. A plain MLP ignores all three. Convolutional networks are the architectural answer to each, and this note shows exactly where the MLP breaks.</p>
+</div></div>
+<section class="sec" id="digital-images-what-they-are-to-a-computer" data-num="01" data-title="Digital images — what they are to a computer">
+<h2><span class="num">01</span> Digital images — what they are to a computer</h2>
+<figure class="fig"><img src="images/out/13_why_cnns-01.png" alt="What the computer sees: a Fashion-MNIST ankle boot is a 28 × 28 grid of numbers from 0 (black) to 255 (white). The right panel zooms into the 8 × 8 patch in the red box and prints each pixel&#x27;s value." loading="lazy"><figcaption>What the computer sees: a Fashion-MNIST ankle boot is a 28 × 28 grid of numbers from 0 (black) to 255 (white). The right panel zooms into the 8 × 8 patch in the red box and prints each pixel's value.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from torchvision import datasets
+
+img = np.array(datasets.FashionMNIST(root=&quot;data&quot;, train=True, download=False)[0][0])     # PIL image → (28, 28) uint8
+r0, c0 = 10, 12
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.6))
+axes[0].imshow(img, cmap=&quot;gray&quot;); axes[0].add_patch(Rectangle((c0 - 0.5, r0 - 0.5), 8, 8, fill=False, ec=&quot;red&quot;, lw=2))
+axes[0].set_title(f&quot;the image: shape {img.shape}, dtype {img.dtype}&quot;, fontsize=10)
+patch = img[r0:r0 + 8, c0:c0 + 8]
+axes[1].imshow(patch, cmap=&quot;gray&quot;, vmin=0, vmax=255)
+for (i, j), v in np.ndenumerate(patch):
+    axes[1].text(j, i, str(v), ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=8, color=&quot;red&quot; if v &lt; 128 else &quot;black&quot;)
+axes[1].set_title(&quot;the red patch, as numbers&quot;, fontsize=10)
+for ax in axes: ax.set_xticks([]); ax.set_yticks([])
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="digital-images-what-they-are-to-a-computer-the-one-sentence-definition">The one-sentence definition</h3>
+<p>An image is a <strong>2D grid of pixels</strong> (3D if it has colour channels). Each pixel is a number — the intensity at that location. Nothing else.</p>
+<h3 id="digital-images-what-they-are-to-a-computer-shape-and-typing">Shape and typing</h3>
+<ul>
+<li>A 28×28 grayscale image: a <code>(28, 28)</code> array of integers from 0 (black) to 255 (white).</li>
+<li>A 1024×768 colour image (1024 wide, 768 tall): a <code>(768, 1024, 3)</code> array, height first, with 3 channels for R, G, B.</li>
+<li>Modern pipelines reshape to <code>(C, H, W)</code> or <code>(N, C, H, W)</code> for batching.</li>
+</ul>
+<h3 id="digital-images-what-they-are-to-a-computer-the-size-problem">The size problem</h3>
+<p>A 224×224 RGB image = 150,528 pixel values. For comparison, a flat tabular dataset usually has 10-100 features. Deep learning on images <strong>inherently works with hundreds of thousands of inputs per example</strong> — which is why the architecture matters.</p>
+<div class="donebar"><button class="donebtn" data-done="digital-images-what-they-are-to-a-computer">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="image-types-binary-grayscale-rgb" data-num="02" data-title="Image types — binary, grayscale, RGB">
+<h2><span class="num">02</span> Image types — binary, grayscale, RGB</h2>
+<figure class="fig"><img src="images/out/13_why_cnns-02.png" alt="One photo three ways. Binary: one bit per pixel (here, brighter than average or not). Grayscale: one 0–255 intensity per pixel. RGB: three intensities per pixel, one per colour channel." loading="lazy"><figcaption>One photo three ways. Binary: one bit per pixel (here, brighter than average or not). Grayscale: one 0–255 intensity per pixel. RGB: three intensities per pixel, one per colour channel.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from pathlib import Path
+
+photo = sorted(Path(&quot;data/pizza_steak_sushi/train/pizza&quot;).glob(&quot;*.jpg&quot;))[0]
+rgb = np.array(Image.open(photo).convert(&quot;RGB&quot;).resize((224, 224)))
+gray = np.array(Image.fromarray(rgb).convert(&quot;L&quot;))
+binary = gray &gt; gray.mean()
+fig, axes = plt.subplots(1, 3, figsize=(12, 4.2))
+for ax, im, title, cmap in [(axes[0], binary, f&quot;binary: {binary.shape}, values 0/1&quot;, &quot;gray&quot;),
+                            (axes[1], gray, f&quot;grayscale: {gray.shape}, 0–255&quot;, &quot;gray&quot;),
+                            (axes[2], rgb, f&quot;RGB: {rgb.shape}, 0–255 per channel&quot;, None)]:
+    ax.imshow(im, cmap=cmap); ax.set_title(title, fontsize=10); ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<ul>
+<li><strong>Binary</strong> — one bit per pixel. 0 or 1. Document scans, segmentation masks.</li>
+<li><strong>Grayscale</strong> — one byte per pixel. 0 (black) to 255 (white). MNIST, X-rays.</li>
+<li><strong>RGB</strong> — three bytes per pixel. Red, Green, Blue. Natural photos.</li>
+</ul>
+<p>Other variants (HSV, LAB, CMYK) exist but RGB and grayscale cover 99% of deep-learning use cases.</p>
+<div class="donebar"><button class="donebtn" data-done="image-types-binary-grayscale-rgb">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="rgb-as-a-tensor" data-num="03" data-title="RGB as a tensor">
+<h2><span class="num">03</span> RGB as a tensor</h2>
+<h3 id="rgb-as-a-tensor-the-three-channels">The three channels</h3>
+<p>Each colour pixel = a triple <span class="tex">(r, g, b)</span> where each component is in [0, 255].</p>
+<p>Equivalently, the image is a <strong>3D tensor</strong> of shape <code>(H, W, 3)</code> (height, width, channels). Three stacked grayscale images — one for red, one for green, one for blue.</p>
+<h3 id="rgb-as-a-tensor-hwc-vs-chw">HWC vs CHW</h3>
+<p>Two conventions you'll meet:</p>
+<ul>
+<li><strong>HWC</strong> (height, width, channels) — the natural way images are stored. OpenCV, PIL, matplotlib.</li>
+<li><strong>CHW</strong> (channels, height, width) — what PyTorch layers want (a batch is <code>NCHW</code>), the layout NVIDIA's cuDNN library was built around.</li>
+</ul>
+<p>You transpose between them with <code>.permute(2, 0, 1)</code> or <code>.permute(1, 2, 0)</code> constantly. Getting the dimensions wrong is a classic early-days bug.</p>
+<div class="donebar"><button class="donebtn" data-done="rgb-as-a-tensor">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-four-computer-vision-tasks" data-num="04" data-title="The four computer-vision tasks">
+<h2><span class="num">04</span> The four computer-vision tasks</h2>
+<p><em>Different problems, same CNN backbone with different heads.</em></p>
+<figure class="fig"><img src="images/out/13_why_cnns-03.png" alt="The same picture, four tasks. Classification gives one label for the image; detection gives a box and a label per object; semantic segmentation labels every pixel with a class; instance segmentation also tells apart the two objects of the same class." loading="lazy"><figcaption>The same picture, four tasks. Classification gives one label for the image; detection gives a box and a label per object; semantic segmentation labels every pixel with a class; instance segmentation also tells apart the two objects of the same class.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+H, W = 120, 180
+yy, xx = np.mgrid[0:H, 0:W]
+disc1 = (xx - 55) ** 2 + (yy - 60) ** 2 &lt; 28 ** 2
+disc2 = (xx - 130) ** 2 + (yy - 70) ** 2 &lt; 22 ** 2
+scene = np.full((H, W, 3), 0.92); scene[disc1 | disc2] = [0.85, 0.35, 0.2]
+fig, axes = plt.subplots(1, 4, figsize=(15, 3.2))
+axes[0].imshow(scene); axes[0].set_title(&#x27;classification\n&quot;apples&quot;&#x27;, fontsize=10)
+axes[1].imshow(scene); axes[1].set_title(&quot;detection\na box + label per object&quot;, fontsize=10)
+for (cx, cy, r) in [(55, 60, 28), (130, 70, 22)]:
+    axes[1].add_patch(Rectangle((cx - r, cy - r), 2 * r, 2 * r, fill=False, ec=&quot;#2563eb&quot;, lw=2))
+    axes[1].text(cx - r, cy - r - 3, &quot;apple&quot;, color=&quot;#2563eb&quot;, fontsize=8)
+sem = np.zeros((H, W, 3)) + 0.92; sem[disc1 | disc2] = [0.2, 0.6, 0.2]
+axes[2].imshow(sem); axes[2].set_title(&quot;semantic segmentation\nclass of every pixel&quot;, fontsize=10)
+ins = np.zeros((H, W, 3)) + 0.92; ins[disc1] = [0.2, 0.6, 0.2]; ins[disc2] = [0.6, 0.2, 0.7]
+axes[3].imshow(ins); axes[3].set_title(&quot;instance segmentation\nclass + which object&quot;, fontsize=10)
+for ax in axes: ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="the-four-computer-vision-tasks-the-task-menu">The task menu</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Task</th>
+<th style="text-align:left">Output</th>
+<th style="text-align:left">Example model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Classification</strong></td>
+<td style="text-align:left">One label per image</td>
+<td style="text-align:left">AlexNet, ResNet, EfficientNet</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Detection</strong></td>
+<td style="text-align:left">Boxes + labels</td>
+<td style="text-align:left">YOLO, Faster R-CNN, DETR</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Semantic segmentation</strong></td>
+<td style="text-align:left">Pixel-level class label</td>
+<td style="text-align:left">U-Net, DeepLab</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Instance segmentation</strong></td>
+<td style="text-align:left">Pixel-level mask + instance ID</td>
+<td style="text-align:left">Mask R-CNN</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="the-four-computer-vision-tasks-why-they-all-use-cnns-or-vit-variants-today">Why they all use CNNs (or ViT variants today)</h3>
+<p>All four tasks share the same hard requirement: <strong>extract meaningful spatial features from pixels</strong>. The feature-extraction <em>backbone</em> is almost always a CNN or vision transformer; only the final task-specific <em>head</em> differs.</p>
+<p>D4 builds the backbone from first principles. A task head for segmentation (U-Net) is a project in D5.</p>
+<div class="donebar"><button class="donebtn" data-done="the-four-computer-vision-tasks">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-naive-mlp-approach-to-images" data-num="05" data-title="The naive MLP approach to images">
+<h2><span class="num">05</span> The naive MLP approach to images</h2>
+<figure class="fig"><img src="images/out/13_why_cnns-04.png" alt="The naive approach: unroll the 28 × 28 grid row by row into one vector of 784 numbers and feed it to an MLP. Pixels that were neighbours vertically end up 28 positions apart." loading="lazy"><figcaption>The naive approach: unroll the 28 × 28 grid row by row into one vector of 784 numbers and feed it to an MLP. Pixels that were neighbours vertically end up 28 positions apart.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from torchvision import datasets
+
+img = np.array(datasets.FashionMNIST(root=&quot;data&quot;, train=True, download=False)[0][0]) / 255
+fig = plt.figure(figsize=(12, 3.4))
+ax1 = fig.add_axes([0.02, 0.1, 0.2, 0.8]); ax1.imshow(img, cmap=&quot;gray&quot;); ax1.set_title(&quot;28 × 28 image&quot;, fontsize=10); ax1.axis(&quot;off&quot;)
+ax2 = fig.add_axes([0.28, 0.42, 0.5, 0.16]); ax2.imshow(img.reshape(1, -1), cmap=&quot;gray&quot;, aspect=&quot;auto&quot;)
+ax2.set_title(&quot;flatten → a vector of 784 numbers&quot;, fontsize=10); ax2.set_yticks([]); ax2.set_xticks([0, 28, 392, 783])
+ax3 = fig.add_axes([0.81, 0.1, 0.18, 0.8])
+from dlviz import draw_network
+draw_network([5, 4, 3], ax=ax3, labels=[[&quot;x₁&quot;, &quot;x₂&quot;, &quot;⋮&quot;, &quot;&quot;, &quot;x₇₈₄&quot;], None, None], layer_names=[&quot;784 inputs&quot;, &quot;hidden&quot;, &quot;10 classes&quot;])
+fig.text(0.79, 0.5, &quot;→&quot;, fontsize=22, va=&quot;center&quot;)
+plt.show()</pre></div></details>
+<h3 id="the-naive-mlp-approach-to-images-the-recipe">The recipe</h3>
+<ol>
+<li>Take a 28×28 grayscale image.</li>
+<li>Flatten it into a 784-dimensional vector.</li>
+<li>Feed it into a standard MLP.</li>
+<li>Train with backpropagation.</li>
+</ol>
+<p>For MNIST, this works — ~98% accuracy with a modest MLP. The approach breaks down for anything bigger.</p>
+<div class="donebar"><button class="donebtn" data-done="the-naive-mlp-approach-to-images">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="why-mlps-fail-on-images-three-fundamental-limits" data-num="06" data-title="Why MLPs fail on images — three fundamental limits">
+<h2><span class="num">06</span> Why MLPs fail on images — three fundamental limits</h2>
+<p><em>Three distinct failures. Each becomes a CNN design principle.</em></p>
+<h3 id="why-mlps-fail-on-images-three-fundamental-limits-parameter-explosion">Parameter explosion</h3>
+<p>For a 224×224 RGB image → first hidden layer of 1,000 units:</p>
+<div class="tex-d">150{,}528 \times 1{,}000 = 150{,}528{,}000 \;\text{weights}</div>
+<p><strong>150 million parameters</strong> for a single layer. Memory, compute, and overfitting all explode.</p>
+<p>CNN fix: <strong>weight sharing</strong> — the same small kernel slides across the whole image.</p>
+<h3 id="why-mlps-fail-on-images-three-fundamental-limits-spatial-structure-is-destroyed">Spatial structure is destroyed</h3>
+<p>Flattening loses the information that neighbouring pixels are <em>neighbours</em>. The MLP has to re-learn spatial locality from scratch, from data alone.</p>
+<p>CNN fix: <strong>local receptive fields</strong> — each neuron looks at a small neighbourhood of the input.</p>
+<h3 id="why-mlps-fail-on-images-three-fundamental-limits-no-translation-invariance">No translation invariance</h3>
+<figure class="fig"><img src="images/out/13_why_cnns-05.png" alt="The same boot, shifted 6 pixels right. To an MLP the two inputs are different: they overlap on only some of the 784 positions, so different weights respond. A convolution&#x27;s output (here a vertical-edge filter) is the same pattern, simply shifted by the same 6 pixels." loading="lazy"><figcaption>The same boot, shifted 6 pixels right. To an MLP the two inputs are different: they overlap on only some of the 784 positions, so different weights respond. A convolution's output (here a vertical-edge filter) is the same pattern, simply shifted by the same 6 pixels.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import torch
+import torch.nn.functional as Fn
+import matplotlib.pyplot as plt
+from torchvision import datasets
+
+img = torch.tensor(np.array(datasets.FashionMNIST(root=&quot;data&quot;, train=True, download=False)[0][0]), dtype=torch.float32) / 255
+shifted = torch.roll(img, shifts=6, dims=1); shifted[:, :6] = 0
+edge = torch.tensor([[1., 0., -1.], [2., 0., -2.], [1., 0., -1.]]).view(1, 1, 3, 3)
+conv = lambda x: Fn.conv2d(x.view(1, 1, 28, 28), edge, padding=1)[0, 0]
+on_a, on_b = img.flatten() &gt; 0.1, shifted.flatten() &gt; 0.1
+fig, axes = plt.subplots(2, 3, figsize=(11, 6.6))
+for row, (x, name) in enumerate([(img, &quot;original&quot;), (shifted, &quot;shifted 6 px right&quot;)]):
+    axes[row, 0].imshow(x, cmap=&quot;gray&quot;); axes[row, 0].set_title(name, fontsize=10)
+    axes[row, 1].imshow((x.flatten() &gt; 0.1).float().view(1, -1).repeat(40, 1), cmap=&quot;Greys&quot;, aspect=&quot;auto&quot;)
+    axes[row, 1].set_title(&quot;which of the 784 inputs are lit (what an MLP sees)&quot;, fontsize=9)
+    axes[row, 2].imshow(conv(x), cmap=&quot;coolwarm&quot;); axes[row, 2].set_title(&quot;vertical-edge filter output&quot;, fontsize=10)
+for ax in axes.ravel(): ax.set_xticks([]); ax.set_yticks([])
+fig.suptitle(f&quot;lit inputs shared by both versions: {(on_a &amp; on_b).sum().item()} of {on_a.sum().item()}   ·   &quot;
+             f&quot;conv(shifted) == shift(conv(original)) away from the edges: &quot;
+             f&quot;{torch.allclose(conv(shifted)[:, 8:-1], conv(img)[:, 2:-7], atol=1e-5)}&quot;, fontsize=10)
+plt.tight_layout(); plt.show()</pre></div></details>
+<p>A cat at pixel (10, 10) and the same cat at pixel (100, 100) activate completely different weights in an MLP. The model has no built-in notion that &quot;a cat is a cat regardless of where in the image it appears.&quot;</p>
+<p>CNN fix: <strong>shared kernels and pooling.</strong> The same feature detector runs at every position, so a shifted input gives a shifted output (convolution is <em>translation-equivariant</em>), and pooling then makes small shifts matter less (approximate <em>invariance</em>).</p>
+<div class="donebar"><button class="donebtn" data-done="why-mlps-fail-on-images-three-fundamental-limits">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="what-cnns-will-fix" data-num="07" data-title="What CNNs will fix">
+<h2><span class="num">07</span> What CNNs will fix</h2>
+<p>Each MLP failure corresponds to a CNN design choice:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">MLP failure</th>
+<th style="text-align:left">CNN fix</th>
+<th style="text-align:left">Covered in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Parameter explosion</td>
+<td style="text-align:left"><strong>Weight sharing</strong> — same kernel reused everywhere</td>
+<td style="text-align:left"><a href="14_convolution.html">note 14</a></td>
+</tr>
+<tr>
+<td style="text-align:left">Spatial structure destroyed</td>
+<td style="text-align:left"><strong>Local receptive fields</strong> — small kernels, not full connections</td>
+<td style="text-align:left"><a href="14_convolution.html">note 14</a></td>
+</tr>
+<tr>
+<td style="text-align:left">No translation invariance</td>
+<td style="text-align:left"><strong>Shared kernels + pooling</strong></td>
+<td style="text-align:left"><a href="14_convolution.html">note 14</a>, <a href="16_pooling.html">note 16</a></td>
+</tr>
+</tbody>
+</table></div>
+<p>The next note (<a href="14_convolution.html">note 14</a>) <em>derives</em> the convolution operation from first principles — translation invariance + locality — rather than presenting it as a mystery operation. That's the whole payoff.</p>
+<div class="donebar"><button class="donebtn" data-done="what-cnns-will-fix">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-mlp-vs-cnn-parameter-counts" data-num="08" data-title="Runnable demo — MLP vs CNN parameter counts">
+<h2><span class="num">08</span> Runnable demo — MLP vs CNN parameter counts</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+
+# A tiny MLP for 28x28 MNIST
+mlp = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(28*28, 128),
+    nn.ReLU(),
+    nn.Linear(128, 10),
+)
+
+# A tiny CNN for the same task
+cnn = nn.Sequential(
+    nn.Conv2d(1, 32, kernel_size=3, padding=1),      # 32 feature maps
+    nn.ReLU(),
+    nn.MaxPool2d(2),                                  # 28 -&gt; 14
+    nn.Conv2d(32, 64, kernel_size=3, padding=1),
+    nn.ReLU(),
+    nn.MaxPool2d(2),                                  # 14 -&gt; 7
+    nn.Flatten(),
+    nn.Linear(64*7*7, 10),
+)
+
+def count(model):
+    return sum(p.numel() for p in model.parameters())
+
+print(f&quot;MLP params: {count(mlp):,}&quot;)
+print(f&quot;CNN params: {count(cnn):,}&quot;)
+print(f&quot;Ratio: {count(mlp) / count(cnn):.2f}x fewer in CNN&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>MLP params: 101,770
+CNN params: 50,186
+Ratio: 2.03x fewer in CNN</pre></div></div></div>
+<h3 id="runnable-demo-mlp-vs-cnn-parameter-counts-scale-it-up-to-224224-rgb">Scale it up to 224×224 RGB</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Realistic size for ImageNet-scale models
+mlp_big = nn.Sequential(
+    nn.Flatten(),
+    nn.Linear(224*224*3, 1000),       # 150M weights in this one layer alone
+    nn.ReLU(),
+    nn.Linear(1000, 1000),
+)
+print(f&quot;MLP (224x224 RGB -&gt; 1000 hidden): {count(mlp_big):,} params&quot;)
+
+conv_blocks = [nn.Conv2d(3, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),        # same 64 filters applied everywhere
+               nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+               nn.Conv2d(128, 256, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2)]      # → (256, 28, 28)
+
+# Careless head: flatten the 256×28×28 map into a dense layer — the explosion comes right back
+cnn_flat = nn.Sequential(*conv_blocks, nn.Flatten(), nn.Linear(256 * 28 * 28, 1000))
+# Modern head: average each of the 256 channels down to one number first (global average pooling)
+cnn_gap = nn.Sequential(*conv_blocks, nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(256, 1000))
+
+conv_only = sum(count(m) for m in conv_blocks)
+print(f&quot;the three conv blocks themselves: {conv_only:,} params&quot;)
+print(f&quot;CNN + flatten → Linear head:       {count(cnn_flat):,} params  (the dense layer is {256*28*28*1000:,} of them)&quot;)
+print(f&quot;CNN + global-average-pool head:    {count(cnn_gap):,} params  = {count(cnn_gap) / count(mlp_big) * 100:.2f}% of the MLP&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>MLP (224x224 RGB -&gt; 1000 hidden): 151,530,000 params
+the three conv blocks themselves: 370,816 params
+CNN + flatten → Linear head:       201,075,816 params  (the dense layer is 200,704,000 of them)
+CNN + global-average-pool head:    627,816 params  = 0.41% of the MLP</pre></div></div></div>
+<h3 id="runnable-demo-mlp-vs-cnn-parameter-counts-the-takeaway">The takeaway</h3>
+<p>The MLP needs <strong>hundreds of millions</strong> of parameters just to accept a modest-sized colour image. The convolutional layers that do the feature extraction need well under half a million, because they share weights and look only locally. The second comparison holds a lesson too: feeding a big feature map straight into a dense layer brings the explosion back, which is why modern CNNs shrink each channel to one number with <strong>global average pooling</strong> before the classifier (ResNet does exactly this, note 19).</p>
+<p>That is the entire argument for CNNs in one benchmark.</p>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-mlp-vs-cnn-parameter-counts">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="index.html"><small>← Back to</small>Convolutional Networks index</a><a class="next" href="14_convolution.html"><small>Next →</small>The Convolution Operation</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

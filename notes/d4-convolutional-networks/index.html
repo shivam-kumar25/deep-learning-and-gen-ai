@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convolutional Networks · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="index">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Convolutional Networks</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout" style="grid-template-columns:minmax(0,1fr)">
+<aside class="toc" id="toc" style="display:none">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">Architectures · D4</div><h1>Convolutional Networks</h1><div class="lead"><p>Why images need a different architecture, and the pieces it is built from. Convolution derived from two simple assumptions, kernel size, stride and padding, pooling, batch normalisation and dropout, a complete CNN trained on Fashion-MNIST, and the architectures that made the field: AlexNet, VGG, GoogLeNet and ResNet.</p>
+</div></div>
+<p>Part <strong>D4</strong> of the course: notes 13–19. Every code cell runs on a live PyTorch kernel on this computer; the training cells use the GPU when there is one.</p>
+<div class="cards"><a class="ncard" href="13_why_cnns.html" data-progress="dld4-/13_why_cnns"><div class="no">13</div><h5>Why Do We Need CNNs?</h5><p>Digital images · Image types · RGB as a tensor · The four computer-vision tasks · The naive MLP approach to images · Why MLPs fail on images · What CNNs will fix</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="14_convolution.html" data-progress="dld4-/14_convolution"><div class="no">14</div><h5>The Convolution Operation</h5><p>From MLP to convolution · Principle 1 · Principle 2 · The convolution operation · Convolution as feature detection · The sliding window · Multiple kernels and channels · Weight sharing · Feature maps</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="15_kernel_stride_padding.html" data-progress="dld4-/15_kernel_stride_padding"><div class="no">15</div><h5>Conv Hyperparameters — Kernel, Stride, Padding</h5><p>The three knobs · Kernel size · Stride · Padding · The output-size formula · Worked examples</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="16_pooling.html" data-progress="dld4-/16_pooling"><div class="no">16</div><h5>Pooling</h5><p>Why pool · Types · Max pooling, illustrated · Average pooling, illustrated · Min pooling (and when it's useful) · Global pooling · Pooling vs strided convolution</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="17_batch_norm_and_dropout.html" data-progress="dld4-/17_batch_norm_and_dropout"><div class="no">17</div><h5>Batch Normalisation &amp; Dropout</h5><p>Batch normalisation · The BN formula, step by step · Worked example · BN in CNNs · Running averages · BN implementation details · Dropout · Training vs inference mode for dropout</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="18_building_and_training_a_cnn.html" data-progress="dld4-/18_building_and_training_a_cnn"><div class="no">18</div><h5>Assembling and Training a CNN</h5><p>The typical CNN pattern · Data augmentation for images · The Fashion-MNIST task · CNN data flow and feature hierarchy · Training process and results · Visualising filters and feature maps</p><div class="pb"><i></i></div><div class="pt">not started</div></a><a class="ncard" href="19_famous_architectures.html" data-progress="dld4-/19_famous_architectures"><div class="no">19</div><h5>Famous CNN Architectures</h5><p>The ImageNet challenge · AlexNet (2012) · VGGNet (2014) · GoogLeNet (2014) · ResNet (2015) · Comparison table</p><div class="pb"><i></i></div><div class="pt">not started</div></a></div>
+<div class="callout tip"><div class="ic">💡</div><div><p>Previous: <strong><a href="../d3-pytorch/index.html">D3: PyTorch</a></strong>. Next: <strong>D5: Projects</strong>.</p>
+</div></div>
+
+<div class="pager"><a href="../index.html"><small>← Back to</small>All ML subjects</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

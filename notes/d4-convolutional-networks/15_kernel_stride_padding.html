@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conv Hyperparameters — Kernel, Stride, Padding · Convolutional Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld4-" data-page="15_kernel_stride_padding">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Convolutional Networks</a> · <b>Conv Hyperparameters — Kernel, Stride, Padding</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔍</div><div class="eyebrow">CNNs · note 15</div><h1>Conv Hyperparameters — Kernel, Stride, Padding</h1><div class="lead"><p>The three knobs you turn on every convolutional layer. Each has a geometric meaning, a formula, and a sensible default.</p>
+</div></div>
+<section class="sec" id="the-three-knobs" data-num="01" data-title="The three knobs">
+<h2><span class="num">01</span> The three knobs</h2>
+<h3 id="the-three-knobs-what-they-do">What they do</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Knob</th>
+<th style="text-align:left">Symbol</th>
+<th style="text-align:left">Controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Kernel size</strong></td>
+<td style="text-align:left">K</td>
+<td style="text-align:left">How much of the image one output pixel sees</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Stride</strong></td>
+<td style="text-align:left">S</td>
+<td style="text-align:left">How far the kernel moves between positions</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Padding</strong></td>
+<td style="text-align:left">P</td>
+<td style="text-align:left">How many zero-pixels are added around the input border</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="the-three-knobs-the-master-formula">The master formula</h3>
+<p>For an input of width <span class="tex">W</span>:</p>
+<div class="tex-d">W_{\text{out}} \;=\; \left\lfloor \frac{W - K + 2P}{S} \right\rfloor + 1</div>
+<p>Everything in this note is cases of this formula. Height follows the same equation.</p>
+<div class="donebar"><button class="donebtn" data-done="the-three-knobs">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="kernel-size" data-num="02" data-title="Kernel size">
+<h2><span class="num">02</span> Kernel size</h2>
+<h3 id="kernel-size-the-tradeoff">The tradeoff</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center">Kernel size</th>
+<th style="text-align:center">Params per filter (RGB in)</th>
+<th style="text-align:left">What it sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center"><strong>1×1</strong></td>
+<td style="text-align:center">3</td>
+<td style="text-align:left">Just the pixel — used for channel-wise mixing (bottleneck blocks)</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>3×3</strong></td>
+<td style="text-align:center">27</td>
+<td style="text-align:left">The pixel and its 8 neighbours — modern default</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>5×5</strong></td>
+<td style="text-align:center">75</td>
+<td style="text-align:left">24 neighbours</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>7×7</strong></td>
+<td style="text-align:center">147</td>
+<td style="text-align:left">48 neighbours — the ResNet stem (AlexNet's first layer was even 11×11)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="kernel-size-common-values-and-when-to-use-them">Common values and when to use them</h3>
+<ul>
+<li><strong>3×3</strong> — modern default. VGG proved stacking many 3×3s beats a single large kernel at the same receptive field with fewer parameters.</li>
+<li><strong>1×1</strong> — pointwise convolution. No spatial mixing, just channel-wise linear combination. Used for dimensionality reduction (bottleneck blocks in ResNet, Inception).</li>
+<li><strong>5×5, 7×7</strong> — early-layer stems and legacy architectures.</li>
+<li><strong>Rarely even</strong> — 2×2 or 4×4 complicate alignment with the pixel grid.</li>
+</ul>
+<p><strong>Rule of thumb:</strong> when in doubt, use 3×3 everywhere.</p>
+<h3 id="kernel-size-the-small-kernels-stacked-deep-trick">The &quot;small kernels stacked deep&quot; trick</h3>
+<p>Two stacked 3×3 convs cover the same receptive field as one 5×5 conv — but with:</p>
+<ul>
+<li><strong>18 parameters</strong> vs <strong>25</strong> per filter.</li>
+<li><strong>Two non-linearities</strong> instead of one — more expressive.</li>
+</ul>
+<p>Three stacked 3×3s match a 7×7 (27 vs 49 params). This is why VGG dropped the big kernels of AlexNet.</p>
+<h3 id="kernel-size-receptive-field">Receptive field</h3>
+<p>A neuron's <strong>receptive field</strong> is the patch of the <em>original input</em> that can affect it. In the first conv layer it is just the kernel, <span class="tex">K \times K</span>. Stack layers and it grows: a neuron in layer 2 looks at a <span class="tex">3 \times 3</span> patch of layer 1, and each of those looked at <span class="tex">3 \times 3</span> of the input, so together they cover <span class="tex">5 \times 5</span>.</p>
+<p>For a stack of layers with kernel sizes <span class="tex">K_\ell</span> and strides <span class="tex">S_\ell</span>, the receptive field <span class="tex">r</span> grows as</p>
+<div class="tex-d">r_\ell = r_{\ell-1} + (K_\ell - 1)\prod_{i&lt;\ell} S_i, \qquad r_0 = 1</div>
+<p>so with stride 1 everywhere, <span class="tex">L</span> layers of <span class="tex">3 \times 3</span> see <span class="tex">(2L + 1) \times (2L + 1)</span>, and every stride (or pooling) of 2 doubles how fast it grows after that point. This is how deep layers come to &quot;see&quot; whole objects while every individual kernel stays small.</p>
+<figure class="fig"><img src="images/out/15_kernel_stride_padding-01.png" alt="The receptive field (red square) of one neuron after 1, 2 and 3 stacked 3 × 3 convolutions at stride 1: 3 × 3, then 5 × 5, then 7 × 7 of the input. The right panel uses stride 2 in the first two layers, and three layers then see 15 × 15." loading="lazy"><figcaption>The receptive field (red square) of one neuron after 1, 2 and 3 stacked 3 × 3 convolutions at stride 1: 3 × 3, then 5 × 5, then 7 × 7 of the input. The right panel uses stride 2 in the first two layers, and three layers then see 15 × 15.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+def rf(layers):                      # layers: list of (kernel, stride)
+    r, jump = 1, 1
+    for k, s in layers:
+        r += (k - 1) * jump; jump *= s
+    return r
+cases = [[(3, 1)], [(3, 1)] * 2, [(3, 1)] * 3, [(3, 2), (3, 2), (3, 1)]]
+names = [&quot;1 × conv3&quot;, &quot;2 × conv3&quot;, &quot;3 × conv3&quot;, &quot;3 × conv3, strides 2, 2, 1&quot;]
+fig, axes = plt.subplots(1, 4, figsize=(14, 3.6))
+for ax, layers, name in zip(axes, cases, names):
+    N = 17
+    for i in range(N):
+        for j in range(N):
+            ax.add_patch(Rectangle((j, i), 1, 1, fc=&quot;#f3f4f6&quot;, ec=&quot;#d1d5db&quot;, lw=0.5))
+    r = rf(layers); o = (N - r) / 2
+    ax.add_patch(Rectangle((o, o), r, r, fc=&quot;#fecaca&quot;, ec=&quot;#dc2626&quot;, lw=2, alpha=0.8))
+    ax.add_patch(Rectangle((8, 8), 1, 1, fc=&quot;#dc2626&quot;))
+    ax.set_title(f&quot;{name}\nreceptive field {r} × {r}&quot;, fontsize=10)
+    ax.set_xlim(0, N); ax.set_ylim(0, N); ax.set_aspect(&quot;equal&quot;); ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="kernel-size-1-1-convolutions">1 × 1 convolutions</h3>
+<p>A <span class="tex">1 \times 1</span> kernel looks at a single pixel, so it does no spatial mixing at all, and yet it is one of the most useful layers. At each pixel it takes the vector of <span class="tex">C_{\text{in}}</span> channel values and applies the same small dense layer to it, producing <span class="tex">C_{\text{out}}</span> values. Two uses:</p>
+<ul>
+<li><strong>Cheaper channels:</strong> turning a <span class="tex">56 \times 56 \times 192</span> volume into <span class="tex">56 \times 56 \times 32</span> with 32 filters of size <span class="tex">1 \times 1 \times 192</span>, before an expensive <span class="tex">3 \times 3</span> or <span class="tex">5 \times 5</span> (the &quot;bottleneck&quot; in Inception and ResNet, note 19).</li>
+<li><strong>More non-linearity for free:</strong> a <span class="tex">1 \times 1</span> conv followed by ReLU adds a layer of depth without changing the receptive field (&quot;network in network&quot;).</li>
+</ul>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+
+x = torch.randn(1, 192, 56, 56)
+squeeze = nn.Conv2d(192, 32, kernel_size=1)
+print(&quot;1×1 conv:&quot;, tuple(x.shape), &quot;→&quot;, tuple(squeeze(x).shape), f&quot;  params {sum(p.numel() for p in squeeze.parameters()):,}&quot;)
+direct = nn.Conv2d(192, 64, kernel_size=5, padding=2)
+bottleneck = nn.Sequential(nn.Conv2d(192, 32, 1), nn.ReLU(), nn.Conv2d(32, 64, 5, padding=2))
+count = lambda m: sum(p.numel() for p in m.parameters())
+print(f&quot;5×5 conv 192→64 directly: {count(direct):,} params   with a 1×1 bottleneck to 32 first: {count(bottleneck):,}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>1×1 conv: (1, 192, 56, 56) → (1, 32, 56, 56)   params 6,176
+5×5 conv 192→64 directly: 307,264 params   with a 1×1 bottleneck to 32 first: 57,440</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="kernel-size">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="stride" data-num="03" data-title="Stride">
+<h2><span class="num">03</span> Stride</h2>
+<h3 id="stride-common-strides">Common strides</h3>
+<ul>
+<li><strong>S = 1</strong> — the default. Output has (almost) the same size as input. Dense feature extraction.</li>
+<li><strong>S = 2</strong> — downsamples by 2×. Faster, smaller feature maps, used instead of or alongside pooling.</li>
+<li><strong>S ≥ 3</strong> — rare, aggressive downsampling. Reserved for the very first layer of some architectures.</li>
+</ul>
+<h3 id="stride-the-output-size-with-stride">The output size with stride</h3>
+<div class="tex-d">W_{\text{out}} \;=\; \left\lfloor \frac{W - K}{S} \right\rfloor + 1</div>
+<p><strong>Example</strong> — input 32, kernel 3, stride 2 (no padding):</p>
+<div class="tex-d">W_{\text{out}} = \left\lfloor \frac{32 - 3}{2} \right\rfloor + 1 = 14 + 1 = 15</div>
+<h3 id="stride-why-stride-1-is-useful">Why stride &gt; 1 is useful</h3>
+<ul>
+<li><strong>Reduces compute.</strong> Each additional stride-2 layer quarters the number of operations in all downstream layers.</li>
+<li><strong>Grows the receptive field faster.</strong> After a stride-2 layer, every later kernel step covers twice as many input pixels (see <em>Receptive field</em> above).</li>
+<li><strong>Replaces pooling.</strong> Modern architectures often use strided conv instead of a conv + pool combo.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="stride">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="padding-valid-and-same" data-num="04" data-title="Padding — valid and same">
+<h2><span class="num">04</span> Padding — valid and same</h2>
+<figure class="fig"><img src="images/out/15_kernel_stride_padding-02.png" alt="Padding P = 1 around a 5 × 5 input (white cells are the added zeros). A 3 × 3 kernel can now be centred on the corner pixel, so the output keeps the 5 × 5 size; without padding it could only sit at 3 × 3 positions." loading="lazy"><figcaption>Padding P = 1 around a 5 × 5 input (white cells are the added zeros). A 3 × 3 kernel can now be centred on the corner pixel, so the output keeps the 5 × 5 size; without padding it could only sit at 3 × 3 positions.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+
+n, P, K = 5, 1, 3
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.4))
+for ax, pad in zip(axes, (0, P)):
+    N = n + 2 * pad
+    for i in range(N):
+        for j in range(N):
+            inside = pad &lt;= i &lt; pad + n and pad &lt;= j &lt; pad + n
+            ax.add_patch(Rectangle((j, N - 1 - i), 1, 1, fc=&quot;#dbeafe&quot; if inside else &quot;white&quot;, ec=&quot;#374151&quot;))
+            ax.text(j + 0.5, N - 0.5 - i, str((i - pad) * n + (j - pad) + 1) if inside else &quot;0&quot;, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9,
+                    color=&quot;black&quot; if inside else &quot;#9ca3af&quot;)
+    ax.add_patch(Rectangle((0, N - K), K, K, fill=False, ec=&quot;#dc2626&quot;, lw=3))
+    out = (N - K) + 1
+    ax.set_title(f&quot;P = {pad}: kernel positions per row = {out} → output {out} × {out}&quot;, fontsize=10)
+    ax.set_xlim(-0.2, 7.2); ax.set_ylim(-0.2, 7.2); ax.set_aspect(&quot;equal&quot;); ax.axis(&quot;off&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="padding-valid-and-same-why-pad">Why pad</h3>
+<p>Without padding, every conv layer shrinks the image. After many layers you run out of pixels, and the border pixels get &quot;seen&quot; by the kernel far fewer times than central pixels do.</p>
+<p>Padding fixes both:</p>
+<ul>
+<li><strong>Preserves spatial size</strong> so you can stack many layers.</li>
+<li><strong>Edge pixels get fairer treatment</strong> — without padding a corner pixel is covered by only one kernel position, an interior pixel by nine; padding lets the kernel centre on the border too.</li>
+</ul>
+<h3 id="padding-valid-and-same-two-padding-modes">Two padding modes</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Mode</th>
+<th style="text-align:left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Valid</strong></td>
+<td style="text-align:left">No padding. <span class="tex">W_{\text{out}} = W - K + 1</span>. Output shrinks.</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Same</strong></td>
+<td style="text-align:left">Padding chosen so output size = input size (at stride 1).</td>
+</tr>
+</tbody>
+</table></div>
+<p>For a kernel size <span class="tex">K</span>, &quot;same&quot; padding at stride 1 means <span class="tex">P = (K - 1) / 2</span>. So:</p>
+<ul>
+<li><span class="tex">K = 3 \to P = 1</span></li>
+<li><span class="tex">K = 5 \to P = 2</span></li>
+<li><span class="tex">K = 7 \to P = 3</span></li>
+</ul>
+<h3 id="padding-valid-and-same-padding-values">Padding values</h3>
+<p>Zero-padding (<code>padding_mode='zeros'</code>) is the standard. Alternatives:</p>
+<ul>
+<li><strong>Reflect</strong> — mirror the edge pixels. Best for natural images.</li>
+<li><strong>Replicate</strong> — repeat the edge pixel. Simple, no dark border artefacts.</li>
+<li><strong>Circular</strong> — wrap-around. Rare, used for periodic data.</li>
+</ul>
+<p>Zero works fine for almost everything. The others matter only when border artefacts actually show up in your task.</p>
+<div class="donebar"><button class="donebtn" data-done="padding-valid-and-same">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-output-size-formula" data-num="05" data-title="The output-size formula">
+<h2><span class="num">05</span> The output-size formula</h2>
+<h3 id="the-output-size-formula-the-equations">The equations</h3>
+<div class="tex-d">W_{\text{out}} \;=\; \left\lfloor \frac{W - K + 2P}{S} \right\rfloor + 1</div>
+<div class="tex-d">H_{\text{out}} \;=\; \left\lfloor \frac{H - K + 2P}{S} \right\rfloor + 1</div>
+<div class="tex-d">C_{\text{out}} \;=\; \text{number of filters}</div>
+<h3 id="the-output-size-formula-memorise-this-one-case">Memorise this one case</h3>
+<p><strong>Default settings for a &quot;same&quot; convolution:</strong> <code>K=3, S=1, P=1</code>.</p>
+<p>Output size = input size. Easy to stack. Default for almost all modern architectures.</p>
+<h3 id="the-output-size-formula-the-floor-matters">The floor matters</h3>
+<p>The <code>floor</code> means that non-divisible combinations silently truncate. Input 7, kernel 3, stride 2, no padding:</p>
+<div class="tex-d">\lfloor (7 - 3) / 2 \rfloor + 1 = 3</div>
+<p>But input 8 gives the same answer:</p>
+<div class="tex-d">\lfloor (8 - 3) / 2 \rfloor + 1 = 3</div>
+<p>The extra pixel of the input is <strong>thrown away</strong> — the kernel doesn't fit at the last position. Use padding to avoid this if you care about keeping every pixel.</p>
+<div class="donebar"><button class="donebtn" data-done="the-output-size-formula">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="worked-examples" data-num="06" data-title="Worked examples">
+<h2><span class="num">06</span> Worked examples</h2>
+<h3 id="worked-examples-example-1-basic-convolution">Example 1 — basic convolution</h3>
+<ul>
+<li>Input: 32 × 32 × 3</li>
+<li>Kernel: 5 × 5</li>
+<li>Padding: 0 (valid)</li>
+<li>Stride: 1</li>
+<li>Filters: 5</li>
+</ul>
+<div class="tex-d">W_{\text{out}} = \lfloor (32 - 5 + 0) / 1 \rfloor + 1 = 28</div>
+<p><strong>Output: 28 × 28 × 5</strong></p>
+<h3 id="worked-examples-example-2-downsampling-convolution">Example 2 — downsampling convolution</h3>
+<ul>
+<li>Input: 32 × 32 × 3</li>
+<li>Kernel: 3 × 3</li>
+<li>Padding: 1 (same)</li>
+<li>Stride: 2</li>
+<li>Filters: 64</li>
+</ul>
+<div class="tex-d">W_{\text{out}} = \lfloor (32 - 3 + 2) / 2 \rfloor + 1 = \lfloor 31 / 2 \rfloor + 1 = 15 + 1 = 16</div>
+<p><strong>Output: 16 × 16 × 64</strong></p>
+<p>Spatial dimensions halved, channel depth boosted — the classic downsampling-and-extracting-features pattern.</p>
+<div class="donebar"><button class="donebtn" data-done="worked-examples">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo" data-num="07" data-title="Runnable demo">
+<h2><span class="num">07</span> Runnable demo</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+import torch.nn as nn
+
+def shape_of(layer, in_shape=(1, 3, 32, 32)):
+    x = torch.randn(in_shape)
+    return tuple(layer(x).shape)
+
+# Example 1: K=5, S=1, P=0, 5 filters -&gt; (N, 5, 28, 28)
+conv1 = nn.Conv2d(in_channels=3, out_channels=5, kernel_size=5, stride=1, padding=0)
+print(f&quot;Ex1 — Conv2d(3,5,K=5,S=1,P=0): input (1,3,32,32) -&gt; output {shape_of(conv1)}&quot;)
+
+# Example 2: K=3, S=2, P=1, 64 filters -&gt; (N, 64, 16, 16)
+conv2 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1)
+print(f&quot;Ex2 — Conv2d(3,64,K=3,S=2,P=1): input (1,3,32,32) -&gt; output {shape_of(conv2)}&quot;)
+
+# Verify by formula
+def out_size(W, K, P, S): return (W - K + 2*P) // S + 1
+print(f&quot;\nFormula check:&quot;)
+print(f&quot;  Ex1: out = {out_size(32, 5, 0, 1)}&quot;)
+print(f&quot;  Ex2: out = {out_size(32, 3, 1, 2)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Ex1 — Conv2d(3,5,K=5,S=1,P=0): input (1,3,32,32) -&gt; output (1, 5, 28, 28)
+Ex2 — Conv2d(3,64,K=3,S=2,P=1): input (1,3,32,32) -&gt; output (1, 64, 16, 16)
+
+Formula check:
+  Ex1: out = 28
+  Ex2: out = 16</pre></div></div></div>
+<h3 id="runnable-demo-visualise-what-each-knob-does">Visualise what each knob does</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.datasets import load_sample_images
+
+img = load_sample_images().images[0].mean(axis=2)[None, None, :, :]  # (1,1,H,W)
+img_t = torch.tensor(img, dtype=torch.float32)
+
+# Three convs with different hyperparameters, all with a Sobel-X-like learned kernel
+# For visual demo, use a fixed kernel
+sobel_x = torch.tensor([[[[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]]], dtype=torch.float32)
+
+configs = [
+    (&#x27;K=3, S=1, P=1 (same)&#x27;,  dict(kernel_size=3, stride=1, padding=1)),
+    (&#x27;K=3, S=2, P=1&#x27;,         dict(kernel_size=3, stride=2, padding=1)),
+    (&#x27;K=3, S=1, P=0 (valid)&#x27;, dict(kernel_size=3, stride=1, padding=0)),
+]
+
+fig, axes = plt.subplots(1, 4, figsize=(16, 4))
+axes[0].imshow(img[0, 0], cmap=&#x27;gray&#x27;); axes[0].set_title(f&#x27;input\n{img.shape[2:]}&#x27;)
+for ax, (label, cfg) in zip(axes[1:], configs):
+    conv = nn.Conv2d(1, 1, bias=False, **cfg)
+    conv.weight.data = sobel_x
+    out = conv(img_t).detach()[0, 0].numpy()
+    ax.imshow(out, cmap=&#x27;gray&#x27;)
+    ax.set_title(f&#x27;{label}\noutput {out.shape}&#x27;)
+for ax in axes: ax.axis(&#x27;off&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/15_kernel_stride_padding-03.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-build-a-layer-sequence-and-track-shapes">Build a layer sequence and track shapes</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># A typical early-CNN stack
+layers = nn.Sequential(
+    nn.Conv2d(3, 32, kernel_size=3, padding=1),  # 32x32 -&gt; 32x32
+    nn.ReLU(),
+    nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # 32x32 -&gt; 16x16
+    nn.ReLU(),
+    nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # 16x16 -&gt; 8x8
+    nn.ReLU(),
+)
+
+x = torch.randn(1, 3, 32, 32)
+print(f&quot;input: {tuple(x.shape)}&quot;)
+for i, layer in enumerate(layers):
+    x = layer(x)
+    print(f&quot;  layer {i} ({type(layer).__name__}): {tuple(x.shape)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>input: (1, 3, 32, 32)
+  layer 0 (Conv2d): (1, 32, 32, 32)
+  layer 1 (ReLU): (1, 32, 32, 32)
+  layer 2 (Conv2d): (1, 64, 16, 16)
+  layer 3 (ReLU): (1, 64, 16, 16)
+  layer 4 (Conv2d): (1, 128, 8, 8)
+  layer 5 (ReLU): (1, 128, 8, 8)</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="14_convolution.html"><small>← Previous</small>The Convolution Operation</a><a class="next" href="16_pooling.html"><small>Next →</small>Pooling</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>
