@@ -1,0 +1,32 @@
+{
+ "conv": "tools/notes/.tmp/conv/d1",
+ "src": "tools/notes/src/d1-neural-network-foundations",
+ "notes_dir": "notes/d1-neural-network-foundations",
+ "img_root": "deep-learning",
+ "eyebrow": "Foundations",
+ "badge": "\ud83e\udde0",
+ "pages": {
+  "01_foundations": {
+   "number": "01"
+  },
+  "02_neuron_and_perceptron": {
+   "number": "02"
+  },
+  "03_mlp_and_feedforward": {
+   "number": "03"
+  },
+  "04_activation_functions": {
+   "number": "04"
+  }
+ },
+ "renumber": {
+  "[Nn]otebook 0": "note 01",
+  "[Nn]otebook 1": "note 02",
+  "[Nn]otebook 2": "note 03",
+  "[Nn]otebook 3": "note 04",
+  "[Nn]otebook 4": "note 05",
+  "[Nn]otebook 5": "note 06",
+  "[Nn]otebook 6": "note 07",
+  "[Nn]otebook 7": "note 08"
+ }
+}

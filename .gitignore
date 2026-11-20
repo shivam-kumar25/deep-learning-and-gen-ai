@@ -216,3 +216,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ---- Studyloom app and notes tooling ----
+node_modules/
+data/*.db
+data/*.db-*
+tools/notes/.tmp/
+tools/notes/test/node_modules/
+tools/notes/test/shots/
+tools/notes/logs/
+!tools/notes/build/
+workspace/data/
+/data/
+dist/

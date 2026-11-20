@@ -1,0 +1,7 @@
+{"subject": "deep-learning", "out": "tools/notes/.tmp/conv/d1",
+ "pages": [
+  {"nb": "0_foundations/0_foundations.ipynb", "stem": "01_foundations", "kind": "note", "run": true},
+  {"nb": "1_neuron_and_perceptron/1_neuron_and_perceptron.ipynb", "stem": "02_neuron_and_perceptron", "kind": "note", "run": true},
+  {"nb": "2_MLP_and_feedforward/2_MLP_and_feedforward.ipynb", "stem": "03_mlp_and_feedforward", "kind": "note", "run": true},
+  {"nb": "3_activation_functions/3_activation_functions.ipynb", "stem": "04_activation_functions", "kind": "note", "run": true}
+ ]}

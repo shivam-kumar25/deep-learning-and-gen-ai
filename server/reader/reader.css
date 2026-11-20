@@ -1,0 +1,117 @@
+/* =====================================================================
+   Studyloom reader theme: applied to a note page only when it is open
+   inside the app (the bridge adds html.in-studyloom). Opened on its own,
+   a note looks exactly as before.
+   ===================================================================== */
+@import url("/reader-kit/tokens.css");
+@font-face { font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900; src: url("/reader-kit/fonts/inter-latin-wght-normal.woff2") format("woff2-variations"); }
+@font-face { font-family: "Fraunces Variable"; font-style: normal; font-display: swap; font-weight: 100 900; src: url("/reader-kit/fonts/fraunces-latin-wght-normal.woff2") format("woff2-variations"); }
+@font-face { font-family: "JetBrains Mono Variable"; font-style: normal; font-display: swap; font-weight: 100 800; src: url("/reader-kit/fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2-variations"); }
+
+html.in-studyloom { --h: var(--sl-h, 245); scroll-padding-top: 24px; }
+
+/* the notes' own variables, mapped onto the design tokens */
+html.in-studyloom body, html.in-studyloom body[data-subject] {
+  --bg: var(--paper); --panel: var(--surface); --panel2: var(--surface-2); --border: var(--line);
+  --text: var(--ink); --muted: var(--muted); --faint: var(--faint);
+  --js: var(--tint-strong); --js-ink: var(--tint-ink);
+  --font: var(--f-sans); --mono: var(--f-mono);
+  --radius: var(--r-s);
+  --shadow: var(--shadow-2);
+  background:
+    radial-gradient(1200px 500px at 85% -120px, hsl(var(--h) 70% 85% / .45), transparent 60%),
+    var(--paper);
+  font-size: 17px; line-height: 1.75;
+}
+html.in-studyloom[data-theme="dark"] body, html.in-studyloom[data-theme="dark"] body[data-subject] {
+  background: radial-gradient(1200px 500px at 85% -120px, hsl(var(--h) 50% 25% / .35), transparent 60%), var(--paper);
+}
+
+/* the app has its own navigation, contents and progress: hide the page's */
+html.in-studyloom .topbar, html.in-studyloom .toc, html.in-studyloom #progress, html.in-studyloom .pager { display: none !important; }
+html.in-studyloom .layout { display: block; max-width: none; }
+html.in-studyloom main { padding: 28px clamp(16px, 4vw, 56px) 140px; }
+html.in-studyloom .content { max-width: 860px; margin: 0 auto; }
+
+/* ---------- the opening: a calm title page ---------- */
+html.in-studyloom .hero {
+  border: 1px solid color-mix(in srgb, var(--tint-strong) 22%, var(--line));
+  border-radius: var(--r-l);
+  padding: clamp(28px, 5vw, 52px) clamp(24px, 5vw, 52px) clamp(26px, 4vw, 44px);
+  background:
+    radial-gradient(500px 260px at 100% 0%, hsl(var(--h) 80% 75% / .35), transparent 70%),
+    radial-gradient(420px 240px at 0% 100%, hsl(calc(var(--h) + 40) 80% 80% / .28), transparent 70%),
+    var(--surface);
+  box-shadow: var(--shadow-2);
+}
+html.in-studyloom[data-theme="dark"] .hero {
+  background:
+    radial-gradient(500px 260px at 100% 0%, hsl(var(--h) 60% 35% / .35), transparent 70%),
+    radial-gradient(420px 240px at 0% 100%, hsl(calc(var(--h) + 40) 60% 30% / .25), transparent 70%),
+    var(--surface);
+}
+html.in-studyloom .hero .js-badge { display: none; }
+html.in-studyloom .hero .eyebrow { font: 600 12.5px/1.4 var(--f-sans); letter-spacing: .12em; color: var(--tint-ink); }
+html.in-studyloom .hero h1 {
+  font-family: var(--f-display); font-weight: 560; font-size: clamp(32px, 4.6vw, 50px); line-height: 1.08;
+  letter-spacing: -.02em; max-width: 720px; margin: 12px 0 16px; font-variation-settings: "opsz" 96;
+}
+html.in-studyloom .hero .lead { font-size: 18.5px; line-height: 1.65; color: var(--ink-2); max-width: 680px; }
+html.in-studyloom .topicnav { margin-top: 20px; }
+
+/* ---------- each section is a chapter: its own card, a coloured band, a numbered badge ---------- */
+html.in-studyloom section.sec {
+  position: relative;
+  margin-top: 40px;
+  padding: 0 clamp(20px, 4.4vw, 48px) clamp(24px, 4vw, 40px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+html.in-studyloom section.sec:nth-of-type(even) { background: var(--surface-2); }
+html.in-studyloom section.sec::before {      /* the band */
+  content: ""; display: block; height: 6px; margin: 0 calc(-1 * clamp(20px, 4.4vw, 48px)) 30px;
+  background: linear-gradient(90deg, var(--tint-strong), hsl(calc(var(--h) + 35) 70% 60%));
+  opacity: .85;
+}
+html.in-studyloom section.sec > h2 {
+  font-family: var(--f-display); font-weight: 600; font-size: clamp(25px, 3vw, 31px); letter-spacing: -.015em; line-height: 1.2;
+  margin: 0 0 22px; gap: 14px; align-items: flex-start; font-variation-settings: "opsz" 72;
+}
+html.in-studyloom section.sec > h2 .num {
+  font: 650 13px/1 var(--f-sans); letter-spacing: .02em;
+  color: var(--tint-ink); background: var(--tint); border: 0;
+  border-radius: 999px; min-width: 38px; height: 38px; padding: 0 10px; margin-top: -1px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+html.in-studyloom section.sec h3 { font-family: var(--f-display); font-weight: 600; font-size: 22px; letter-spacing: -.01em; margin-top: 2.1em; }
+html.in-studyloom section.sec h4 { font-size: 17px; letter-spacing: 0; }
+html.in-studyloom section.sec p, html.in-studyloom section.sec li { color: var(--ink-2); }
+html.in-studyloom section.sec strong { color: var(--ink); }
+html.in-studyloom a { color: var(--brand); text-underline-offset: 3px; }
+html.in-studyloom .preface { color: var(--ink-2); font-size: 17px; margin-top: 28px; }
+html.in-studyloom .partbanner { font-family: var(--f-display); border-radius: var(--r-m); }
+
+/* finishing a section */
+html.in-studyloom .donebar { margin-top: 36px; padding-top: 20px; border-top: 1px dashed var(--line-2); }
+html.in-studyloom .donebtn {
+  font: 600 14px var(--f-sans); padding: 10px 18px; border-radius: 999px;
+  color: var(--ink-2); background: var(--surface); border: 1.5px solid var(--line-2);
+  transition: all .2s var(--ease);
+}
+html.in-studyloom .donebtn:hover { border-color: var(--good); color: var(--good); transform: translateY(-1px); }
+html.in-studyloom .donebtn.done { color: #fff; background: var(--good); border-color: var(--good); }
+
+/* blocks inside the notes: softer, rounder, on-brand */
+html.in-studyloom .codewrap, html.in-studyloom .widget, html.in-studyloom .demo, html.in-studyloom .pq,
+html.in-studyloom .tblwrap, html.in-studyloom .frames, html.in-studyloom figure img { border-radius: var(--r-m); }
+html.in-studyloom .widget { border-color: color-mix(in srgb, var(--tint-strong) 25%, var(--line)); box-shadow: var(--shadow-1); }
+html.in-studyloom .widget .whead { background: var(--tint); border-bottom-color: color-mix(in srgb, var(--tint-strong) 20%, var(--line)); }
+html.in-studyloom .widget .whead .ttl { font-family: var(--f-display); font-weight: 600; font-size: 16.5px; }
+html.in-studyloom .callout { border-radius: var(--r-m); }
+html.in-studyloom table th { font-family: var(--f-sans); }
+html.in-studyloom .btn.primary { background: var(--tint-strong); border-color: var(--tint-strong); color: #fff; }
+html.in-studyloom :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { html.in-studyloom * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }

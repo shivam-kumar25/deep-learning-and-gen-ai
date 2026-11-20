@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>From Biology to the Perceptron · Neural Network Foundations · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld1-" data-page="02_neuron_and_perceptron">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Neural Network Foundations</a> · <b>From Biology to the Perceptron</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🧠</div><div class="eyebrow">Foundations · note 02</div><h1>From Biology to the Perceptron</h1><div class="lead"><p>The origin story of the neural network. Real neurons in your brain → the first mathematical model in 1943 → Rosenblatt's Perceptron in 1958 → the XOR failure that killed neural network research for decades. Everything from here onwards is trying to fix the XOR problem.</p>
+</div></div>
+<section class="sec" id="the-biological-neuron" data-num="01" data-title="The biological neuron">
+<h2><span class="num">01</span> The biological neuron</h2>
+<p><em>The wetware inspiration. Not a replica, an abstraction.</em></p>
+<figure><img src="images/slides/biological-neuron.png" alt="Diagram of a biological neuron with dendrite, cell body, axon and axon terminals labelled" loading="lazy"><figcaption>The biological neuron — parts labelled and the simplified model on the right</figcaption></figure>
+<h3 id="the-biological-neuron-the-four-parts-you-need-to-know">The four parts you need to know</h3>
+<ul>
+<li><strong>Dendrites</strong> — branching input structures. Receive signals from thousands of other neurons.</li>
+<li><strong>Soma (cell body)</strong> — the integrator. Sums up incoming signals.</li>
+<li><strong>Axon</strong> — the output cable. Long single fibre.</li>
+<li><strong>Axon terminals</strong> — where the signal leaves, forming <em>synapses</em> with the dendrites of downstream neurons.</li>
+</ul>
+<h3 id="the-biological-neuron-how-it-fires">How it fires</h3>
+<p>Signals arriving at dendrites accumulate in the soma. If the total excitation crosses a <strong>threshold</strong>, the neuron <em>fires</em> — sending a voltage spike down the axon to every downstream neuron it's connected to. Otherwise it stays quiet.</p>
+<p>That's it: <strong>sum inputs, compare to threshold, fire or don't</strong>. The behaviour of a neuron is roughly all-or-nothing.</p>
+<h3 id="the-biological-neuron-inspiration-not-a-replica">Inspiration, not a replica</h3>
+<p>Two important disclaimers before we move on:</p>
+<ul>
+<li><strong>Real neurons are vastly more complex.</strong> Continuous membrane voltages, ion channels, neurotransmitter dynamics, spike timing. The math model throws all of that away.</li>
+<li><strong>Biological learning is not backpropagation.</strong> The brain doesn't use gradient descent. We use it because it works on silicon, not because it's biologically plausible.</li>
+</ul>
+<p>The neural-network abstraction is <em>useful</em>, not <em>true</em>. That's a strong enough claim to build the entire field on.</p>
+<div class="donebar"><button class="donebtn" data-done="the-biological-neuron">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-mcculloch-pitts-m-p-neuron" data-num="02" data-title="The McCulloch-Pitts (M-P) neuron">
+<h2><span class="num">02</span> The McCulloch-Pitts (M-P) neuron</h2>
+<p><em>The first mathematical model of a neuron. McCulloch &amp; Pitts, 1943 — before &quot;artificial intelligence&quot; was even a phrase.</em></p>
+<figure class="fig"><img src="images/out/02_neuron_and_perceptron-01.png" alt="The McCulloch-Pitts neuron: binary inputs are summed with no weights, and the unit fires (1) only when the sum reaches the threshold θ." loading="lazy"><figcaption>The McCulloch-Pitts neuron: binary inputs are summed with no weights, and the unit fires (1) only when the sum reaches the threshold θ.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+
+fig, ax = plt.subplots(figsize=(7, 3.4))
+xs = [(&quot;x₁&quot;, 1.2), (&quot;x₂&quot;, 0.4), (&quot;⋮&quot;, -0.3), (&quot;xₙ&quot;, -1.0)]
+for name, y in xs:
+    if name != &quot;⋮&quot;:
+        ax.add_patch(Circle((0, y), 0.22, fc=&quot;#dbeafe&quot;, ec=&quot;#374151&quot;))
+        ax.annotate(&quot;&quot;, (2.05, 0.05 * y), (0.24, y), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#6b7280&quot;))
+    ax.text(0, y, name, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=11)
+ax.add_patch(Circle((2.6, 0), 0.55, fc=&quot;#ede9fe&quot;, ec=&quot;#374151&quot;, lw=1.4))
+ax.plot([2.6, 2.6], [-0.55, 0.55], color=&quot;#374151&quot;, lw=1)
+ax.text(2.33, 0, &quot;Σ&quot;, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=16)
+ax.text(2.87, 0, &quot;≥θ&quot;, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=11)
+ax.annotate(&quot;&quot;, (4.3, 0), (3.17, 0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#374151&quot;, lw=1.4))
+ax.text(4.45, 0, &quot;y ∈ {0, 1}&quot;, va=&quot;center&quot;, fontsize=11)
+ax.text(0, 1.75, &quot;binary inputs\n(all count equally)&quot;, ha=&quot;center&quot;, fontsize=9, color=&quot;#374151&quot;)
+ax.text(2.6, 0.85, &quot;sum, then compare\nto a fixed threshold&quot;, ha=&quot;center&quot;, fontsize=9, color=&quot;#374151&quot;)
+ax.set_xlim(-0.6, 5.6); ax.set_ylim(-1.5, 2.3); ax.set_aspect(&quot;equal&quot;); ax.axis(&quot;off&quot;)
+plt.show()</pre></div></details>
+<h3 id="the-mcculloch-pitts-m-p-neuron-the-definition">The definition</h3>
+<p>Given <span class="tex">n</span> binary inputs <span class="tex">x_1, x_2, \ldots, x_n \in \{0, 1\}</span> and a fixed threshold <span class="tex">\theta</span>:</p>
+<div class="tex-d">y = \begin{cases} 1 &amp; \text{if} \sum_i x_i \;\geq\; \theta \\ 0 &amp; \text{otherwise} \end{cases}</div>
+<p><strong>No weights.</strong> Every input contributes equally. The only knob is the threshold <span class="tex">\theta</span>.</p>
+<h3 id="the-mcculloch-pitts-m-p-neuron-building-logic-gates-with-m-p-neurons">Building logic gates with M-P neurons</h3>
+<figure><img src="images/slides/mp-neuron-and-gate-example.png" alt="M-P neuron implementing an AND gate" loading="lazy"><figcaption>An M-P neuron with threshold θ=2 realises AND</figcaption></figure>
+<ul>
+<li><strong>AND</strong>: threshold <span class="tex">\theta = n</span>. Fires only when <em>every</em> input is 1.</li>
+<li><strong>OR</strong>: threshold <span class="tex">\theta = 1</span>. Fires when <em>any</em> input is 1.</li>
+<li><strong>NOT</strong>: needs <em>inhibitory</em> inputs (M-P allowed those too — negative connections that veto the neuron).</li>
+</ul>
+<h3 id="the-mcculloch-pitts-m-p-neuron-why-it-mattered-historically">Why it mattered historically</h3>
+<p>McCulloch and Pitts proved that networks of these binary threshold units could compute <strong>any Boolean function</strong> — any logic gate, any combination of them. This was the seed idea that eventually became &quot;neural networks can approximate any function&quot;.</p>
+<p>But it was a purely <em>theoretical</em> result. Nothing in the M-P model said <em>how to learn</em> the connections. You had to design the network by hand.</p>
+<div class="donebar"><button class="donebtn" data-done="the-mcculloch-pitts-m-p-neuron">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="limitations-of-the-m-p-neuron" data-num="03" data-title="Limitations of the M-P neuron">
+<h2><span class="num">03</span> Limitations of the M-P neuron</h2>
+<p>The M-P model was elegant but crippled by four problems:</p>
+<ol>
+<li><strong>No learning.</strong> You set the threshold and connections by hand. Nothing adjusts them from data.</li>
+<li><strong>Binary inputs only.</strong> No way to feed real-valued measurements (weight, temperature, pixel intensity).</li>
+<li><strong>All inputs weighted equally.</strong> In real problems some inputs matter more than others.</li>
+<li><strong>Hard threshold.</strong> Not differentiable — no gradient to follow.</li>
+</ol>
+<p>The Perceptron fixes problems 1, 2, and 3. Modern neurons fix all four.</p>
+<div class="donebar"><button class="donebtn" data-done="limitations-of-the-m-p-neuron">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="from-m-p-to-the-perceptron" data-num="04" data-title="From M-P to the Perceptron">
+<h2><span class="num">04</span> From M-P to the Perceptron</h2>
+<p><em>Frank Rosenblatt, 1958 — the first neural network that could learn from data.</em></p>
+<figure><img src="images/slides/the-perceptrons-1958.jpg" alt="Historical photograph of the Mark I Perceptron machine" loading="lazy"><figcaption>Rosenblatt's Mark I Perceptron (1958) — the first learning machine, built at Cornell</figcaption></figure>
+<h3 id="from-m-p-to-the-perceptron-what-changed">What changed</h3>
+<p>The Perceptron kept the &quot;sum and threshold&quot; idea, but generalised it:</p>
+<div class="tex-d">y = \begin{cases} 1 &amp; \text{if} \;\; \sum_i w_i x_i + b \;\geq\; 0 \\ 0 &amp; \text{otherwise} \end{cases}</div>
+<p>Three things are new:</p>
+<ul>
+<li><strong>Real-valued inputs</strong> <span class="tex">x_i \in \mathbb{R}</span> (not just 0/1).</li>
+<li><strong>Learnable weights</strong> <span class="tex">w_i \in \mathbb{R}</span> — each input has its own strength.</li>
+<li><strong>Learnable bias</strong> <span class="tex">b \in \mathbb{R}</span> — a threshold you don't have to pick by hand.</li>
+</ul>
+<h3 id="from-m-p-to-the-perceptron-the-geometric-view">The geometric view</h3>
+<figure class="fig"><img src="images/out/02_neuron_and_perceptron-02.png" alt="A perceptron is a line: points where w·x + b ≥ 0 are classed 1, the rest 0. The weight vector w points into the positive side, at right angles to the line." loading="lazy"><figcaption>A perceptron is a line: points where w·x + b ≥ 0 are classed 1, the rest 0. The weight vector w points into the positive side, at right angles to the line.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(1)
+pos = rng.normal([2.2, 2.0], 0.45, (25, 2)); neg = rng.normal([0.8, 0.7], 0.45, (25, 2))
+w, b = np.array([1.0, 1.0]), -3.0                     # the line x1 + x2 = 3
+fig, ax = plt.subplots(figsize=(5.6, 4.6))
+xx, yy = np.meshgrid(np.linspace(-0.5, 3.5, 300), np.linspace(-0.5, 3.5, 300))
+ax.contourf(xx, yy, (w[0] * xx + w[1] * yy + b &gt;= 0), levels=[-0.5, 0.5, 1.5], colors=[&quot;#dbeafe&quot;, &quot;#fee2e2&quot;], alpha=0.7)
+ax.plot([-0.5, 3.5], [3.5, -0.5], &quot;k-&quot;, lw=1.6, label=&quot;w·x + b = 0&quot;)
+ax.scatter(*pos.T, c=&quot;#dc2626&quot;, edgecolors=&quot;k&quot;, label=&quot;class 1&quot;)
+ax.scatter(*neg.T, c=&quot;#2563eb&quot;, edgecolors=&quot;k&quot;, label=&quot;class 0&quot;)
+ax.annotate(&quot;&quot;, (2.1, 2.1), (1.5, 1.5), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, lw=2, color=&quot;#111827&quot;))
+ax.text(1.55, 1.95, &quot;w&quot;, fontsize=13, weight=&quot;bold&quot;)
+ax.text(2.6, 3.2, &quot;w·x + b ≥ 0  →  1&quot;, fontsize=9); ax.text(-0.35, -0.3, &quot;w·x + b &lt; 0  →  0&quot;, fontsize=9)
+ax.set_xlim(-0.5, 3.5); ax.set_ylim(-0.5, 3.5); ax.set_xlabel(&quot;x₁&quot;); ax.set_ylabel(&quot;x₂&quot;)
+ax.legend(loc=&quot;upper left&quot;, fontsize=8); ax.set_aspect(&quot;equal&quot;)
+plt.show()</pre></div></details>
+<p>Everything the perceptron does is captured by one picture:</p>
+<div class="tex-d">\mathbf{w} \cdot \mathbf{x} + b \;=\; 0</div>
+<p>is the equation of a <strong>hyperplane</strong> — a line in 2D, a plane in 3D, and generally an <span class="tex">(n-1)</span>-dimensional flat sheet in <span class="tex">n</span> dimensions. Points on one side get classified <code>1</code>; points on the other side get <code>0</code>.</p>
+<p>Training a perceptron = <strong>rotating and shifting that hyperplane until it separates the classes</strong>.</p>
+<h3 id="from-m-p-to-the-perceptron-why-this-was-a-big-deal">Why this was a big deal</h3>
+<p>For the first time, a machine could <em>learn</em> to classify inputs. You showed it examples; it adjusted its weights; eventually it got them right. The 1958 press hailed it as the first step toward machines that &quot;walk, talk, see, write, reproduce themselves, and be conscious of their existence.&quot;</p>
+<p>We got carried away. But the basic learning algorithm is real, and every deep network trained today is a descendant of it.</p>
+<div class="donebar"><button class="donebtn" data-done="from-m-p-to-the-perceptron">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-perceptron-learning-rule" data-num="05" data-title="The Perceptron learning rule">
+<h2><span class="num">05</span> The Perceptron learning rule</h2>
+<p><em>How the weights actually change during training. Simple enough to do by hand.</em></p>
+<h3 id="the-perceptron-learning-rule-the-rule">The rule</h3>
+<p>For each training example <span class="tex">(\mathbf{x}, y_{\text{true}})</span>:</p>
+<ol>
+<li>Compute prediction <span class="tex">\hat{y} = \text{step}(\mathbf{w} \cdot \mathbf{x} + b)</span>.</li>
+<li>If <span class="tex">\hat{y} = y_{\text{true}}</span> → do nothing.</li>
+<li>If <span class="tex">\hat{y} \neq y_{\text{true}}</span> → update:</li>
+</ol>
+<div class="tex-d">\mathbf{w} \;\leftarrow\; \mathbf{w} + \eta \, (y_{\text{true}} - \hat{y}) \, \mathbf{x}</div>
+<div class="tex-d">b \;\leftarrow\; b + \eta \, (y_{\text{true}} - \hat{y})</div>
+<p>where <span class="tex">\eta &gt; 0</span> is the <strong>learning rate</strong> — a small positive constant (often 1 in classical perceptron work).</p>
+<h3 id="the-perceptron-learning-rule-why-the-rule-works-intuition">Why the rule works — intuition</h3>
+<ul>
+<li>If you predicted <code>0</code> when the answer was <code>1</code>, the term <span class="tex">(y_{\text{true}} - \hat{y}) = +1</span>. The update <em>adds</em> <span class="tex">\mathbf{x}</span> to <span class="tex">\mathbf{w}</span> — pulling the hyperplane <em>toward</em> this example, making it more likely to fire next time.</li>
+<li>If you predicted <code>1</code> when the answer was <code>0</code>, the term <span class="tex">(y_{\text{true}} - \hat{y}) = -1</span>. The update <em>subtracts</em> <span class="tex">\mathbf{x}</span> from <span class="tex">\mathbf{w}</span> — pushing the hyperplane <em>away</em> from this example.</li>
+</ul>
+<p>Correctness is a fixed point: predict right → no change.</p>
+<h3 id="the-perceptron-learning-rule-contrast-with-modern-gradient-descent">Contrast with modern gradient descent</h3>
+<p>The Perceptron rule is a special case of <strong>stochastic gradient descent</strong> on the &quot;perceptron loss&quot; (a specific choice of loss function). It converges in a small number of passes when the data is separable but doesn't offer anything smooth to differentiate — that's what modern neurons use activation functions and cross-entropy for.</p>
+<p>Full modern treatment in <a href="../d2-training-neural-networks/06_gradient_descent.html">note 06</a> and <a href="../d2-training-neural-networks/07_backpropagation.html">note 07</a>.</p>
+<div class="donebar"><button class="donebtn" data-done="the-perceptron-learning-rule">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="perceptron-convergence-theorem" data-num="06" data-title="Perceptron Convergence Theorem">
+<h2><span class="num">06</span> Perceptron Convergence Theorem</h2>
+<p><em>The formal guarantee that made the perceptron respectable.</em></p>
+<h3 id="perceptron-convergence-theorem-the-statement">The statement</h3>
+<blockquote>
+<p><strong>If the training data is linearly separable, the perceptron learning rule will find a separating hyperplane in a finite number of updates.</strong></p>
+</blockquote>
+<p>That's a strong guarantee: not &quot;usually&quot;, not &quot;with high probability&quot;, but <em>provably</em> in finite time.</p>
+<h3 id="perceptron-convergence-theorem-the-two-words-that-matter">The two words that matter</h3>
+<ul>
+<li><strong>&quot;linearly separable&quot;</strong> — there must <em>exist</em> some hyperplane that perfectly separates positive from negative examples. If no such hyperplane exists, the theorem says nothing.</li>
+<li><strong>&quot;finite&quot;</strong> — the bound depends on the geometry of the data (margin, radius). The exact bound is <span class="tex">O(R^2 / \gamma^2)</span> updates where <span class="tex">R</span> is the largest input norm and <span class="tex">\gamma</span> is the margin of the true separator. Big margin → fast convergence.</li>
+</ul>
+<h3 id="perceptron-convergence-theorem-what-happens-on-non-separable-data">What happens on non-separable data</h3>
+<p>The perceptron cycles forever, never settling. There is no built-in &quot;give up&quot; heuristic — you add one yourself (max iterations, or switch to a soft classifier).</p>
+<h3 id="perceptron-convergence-theorem-the-big-caveat">The big caveat</h3>
+<p>The theorem only helps you when the data is separable. <strong>Most interesting real-world problems aren't linearly separable</strong> — including XOR, up next. That's the wall the field hit.</p>
+<div class="donebar"><button class="donebtn" data-done="perceptron-convergence-theorem">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-xor-problem-where-the-perceptron-breaks" data-num="07" data-title="The XOR problem — where the perceptron breaks">
+<h2><span class="num">07</span> The XOR problem — where the perceptron breaks</h2>
+<p><em>The 4-example dataset that stopped the field for 15 years.</em></p>
+<h3 id="the-xor-problem-where-the-perceptron-breaks-what-xor-is">What XOR is</h3>
+<p>The XOR (exclusive OR) truth table:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center"><span class="tex">x_1</span></th>
+<th style="text-align:center"><span class="tex">x_2</span></th>
+<th style="text-align:center"><span class="tex">y</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">0</td>
+<td style="text-align:center">0</td>
+<td style="text-align:center">0</td>
+</tr>
+<tr>
+<td style="text-align:center">0</td>
+<td style="text-align:center">1</td>
+<td style="text-align:center">1</td>
+</tr>
+<tr>
+<td style="text-align:center">1</td>
+<td style="text-align:center">0</td>
+<td style="text-align:center">1</td>
+</tr>
+<tr>
+<td style="text-align:center">1</td>
+<td style="text-align:center">1</td>
+<td style="text-align:center">0</td>
+</tr>
+</tbody>
+</table></div>
+<p>The output is <code>1</code> if the inputs <em>disagree</em>, <code>0</code> if they agree.</p>
+<h3 id="the-xor-problem-where-the-perceptron-breaks-why-its-impossible-for-a-perceptron">Why it's impossible for a perceptron</h3>
+<figure class="fig"><img src="images/out/02_neuron_and_perceptron-03.png" alt="XOR: the 1s sit on one diagonal and the 0s on the other. Every straight line tried here gets at least one of the four points wrong." loading="lazy"><figcaption>XOR: the 1s sit on one diagonal and the 0s on the other. Every straight line tried here gets at least one of the four points wrong.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]]); y = np.array([0, 1, 1, 0])
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.6))
+lines = [((1, 1), -0.5, &quot;x₁ + x₂ = 0.5&quot;), ((1, 1), -1.5, &quot;x₁ + x₂ = 1.5&quot;), ((1, -1), -0.5, &quot;x₁ − x₂ = 0.5&quot;)]
+for ax, (w, b, name) in zip(axes, lines):
+    pred = (X @ np.array(w) + b &gt; 0).astype(int)
+    wrong = (pred != y).sum()
+    xs = np.linspace(-0.4, 1.4, 2)
+    ax.plot(xs, -(w[0] * xs + b) / w[1], &quot;k--&quot;)
+    for (a, c), t, p in zip(X, y, pred):
+        ax.scatter(a, c, s=260, c=&quot;#dc2626&quot; if t else &quot;#2563eb&quot;, edgecolors=&quot;k&quot;, zorder=3)
+        if t != p:
+            ax.scatter(a, c, s=700, facecolors=&quot;none&quot;, edgecolors=&quot;#f59e0b&quot;, lw=2.5, zorder=4)
+    ax.set_title(f&quot;{name}: {wrong} wrong&quot;, fontsize=10)
+    ax.set_xlim(-0.4, 1.4); ax.set_ylim(-0.4, 1.4); ax.set_aspect(&quot;equal&quot;); ax.grid(alpha=0.3)
+    ax.set_xlabel(&quot;x₁&quot;); ax.set_ylabel(&quot;x₂&quot;)
+plt.suptitle(&quot;XOR — red = 1, blue = 0, orange ring = misclassified&quot;, fontsize=10)
+plt.tight_layout(); plt.show()</pre></div></details>
+<p>Plot the four XOR examples on 2D axes. The <code>1</code> points are at <code>(0, 1)</code> and <code>(1, 0)</code> — opposite corners. The <code>0</code> points are at <code>(0, 0)</code> and <code>(1, 1)</code> — the other diagonal.</p>
+<p><strong>No straight line can separate the diagonals.</strong> No matter how you rotate and shift the perceptron's hyperplane, you can always draw one that misclassifies at least one of the four points.</p>
+<p>Because a perceptron <em>is</em> a hyperplane, XOR is fundamentally beyond its expressive power.</p>
+<h3 id="the-xor-problem-where-the-perceptron-breaks-minsky-and-paperts-book">Minsky and Papert's book</h3>
+<p>Marvin Minsky and Seymour Papert's 1969 book <em>Perceptrons</em> proved formally that single-layer perceptrons could not solve XOR (or, more generally, any function that isn't linearly separable). The book was widely (and unfairly) read as <em>&quot;neural networks are a dead end&quot;</em>.</p>
+<p>Funding dried up. The field entered its <strong>first AI winter</strong>. Progress on neural networks stalled from ~1969 to the mid-1980s.</p>
+<h3 id="the-xor-problem-where-the-perceptron-breaks-the-fix-spoiler">The fix — spoiler</h3>
+<p>The fix was already known in principle: <strong>stack perceptrons in layers</strong>. A &quot;hidden&quot; layer of perceptrons can carve the input space into pieces that a second perceptron can then combine linearly — enough to solve XOR.</p>
+<p>What the field lacked in 1969 was:</p>
+<ul>
+<li>The learning algorithm (<strong>backpropagation</strong> — rediscovered/popularised in 1986).</li>
+<li>The compute (arrived much later).</li>
+</ul>
+<p><a href="03_mlp_and_feedforward.html">Note 03</a> shows how the multi-layer perceptron actually solves XOR; <a href="../d2-training-neural-networks/07_backpropagation.html">note 07</a> shows how backpropagation makes it learn.</p>
+<div class="donebar"><button class="donebtn" data-done="the-xor-problem-where-the-perceptron-breaks">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-perceptron-on-and-or-and-failing-on-xor" data-num="08" data-title="Runnable demo — perceptron on AND, OR, and (failing on) XOR">
+<h2><span class="num">08</span> Runnable demo — perceptron on AND, OR, and (failing on) XOR</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+class Perceptron:
+    def __init__(self, n_features, lr=1.0):
+        self.w = np.zeros(n_features)
+        self.b = 0.0
+        self.lr = lr
+
+    def predict(self, X):
+        return (X @ self.w + self.b &gt;= 0).astype(int)
+
+    def fit(self, X, y, epochs=20):
+        history = []
+        for epoch in range(epochs):
+            errors = 0
+            for xi, yi in zip(X, y):
+                y_pred = 1 if xi @ self.w + self.b &gt;= 0 else 0
+                update = self.lr * (yi - y_pred)
+                if update != 0:
+                    self.w += update * xi
+                    self.b += update
+                    errors += 1
+            history.append(errors)
+            if errors == 0:                       # early stop when converged
+                break
+        return history
+
+# Truth tables for AND, OR, XOR
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+y_and = np.array([0, 0, 0, 1])
+y_or  = np.array([0, 1, 1, 1])
+y_xor = np.array([0, 1, 1, 0])
+
+print(&quot;Training a perceptron on three gates...\n&quot;)
+for name, y in [(&#x27;AND&#x27;, y_and), (&#x27;OR&#x27;, y_or), (&#x27;XOR&#x27;, y_xor)]:
+    p = Perceptron(n_features=2)
+    hist = p.fit(X, y, epochs=50)
+    preds = p.predict(X)
+    print(f&quot;{name:5s}  epochs used: {len(hist):3d}   final errors: {hist[-1]}   &quot;
+          f&quot;preds: {preds.tolist()}   truth: {y.tolist()}   correct: {np.array_equal(preds, y)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Training a perceptron on three gates...
+
+AND    epochs used:   6   final errors: 0   preds: [0, 0, 0, 1]   truth: [0, 0, 0, 1]   correct: True
+OR     epochs used:   4   final errors: 0   preds: [0, 1, 1, 1]   truth: [0, 1, 1, 1]   correct: True
+XOR    epochs used:  50   final errors: 4   preds: [1, 1, 0, 0]   truth: [0, 1, 1, 0]   correct: False</pre></div></div></div>
+<h3 id="runnable-demo-perceptron-on-and-or-and-failing-on-xor-visualise-all-three">Visualise all three</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+for ax, name, y in zip(axes, [&#x27;AND&#x27;, &#x27;OR&#x27;, &#x27;XOR&#x27;], [y_and, y_or, y_xor]):
+    p = Perceptron(n_features=2)
+    p.fit(X, y, epochs=50)
+
+    # Decision boundary grid
+    xx, yy = np.meshgrid(np.linspace(-0.3, 1.3, 200), np.linspace(-0.3, 1.3, 200))
+    Z = p.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+    ax.contourf(xx, yy, Z, alpha=0.3, cmap=&#x27;coolwarm&#x27;, levels=[-0.5, 0.5, 1.5])
+
+    # Data points
+    for xi, yi in zip(X, y):
+        ax.scatter(*xi, c=&#x27;red&#x27; if yi == 1 else &#x27;blue&#x27;, s=200, edgecolors=&#x27;k&#x27;, zorder=5)
+
+    correct = np.array_equal(p.predict(X), y)
+    ax.set_title(f&#x27;{name}   {&quot;solved&quot; if correct else &quot;FAILED&quot;}&#x27;)
+    ax.set_xlabel(&#x27;x1&#x27;); ax.set_ylabel(&#x27;x2&#x27;)
+    ax.grid(alpha=0.3); ax.set_xlim(-0.3, 1.3); ax.set_ylim(-0.3, 1.3)
+
+plt.suptitle(&#x27;Perceptron on AND, OR, XOR — the wall neural networks hit in 1969&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/02_neuron_and_perceptron-04.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-perceptron-on-and-or-and-failing-on-xor-what-just-happened">What just happened</h3>
+<p><strong>AND and OR</strong> — linearly separable. The perceptron finds a line, done.</p>
+<p><strong>XOR</strong> — no line works. The perceptron keeps trying forever (we cut it off at 50 epochs), predicting the same wrong answers over and over.</p>
+<p>The fix — a hidden layer — is the whole point of <a href="03_mlp_and_feedforward.html">note 03</a>.</p>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-perceptron-on-and-or-and-failing-on-xor">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="01_foundations.html"><small>← Previous</small>Foundations of Deep Learning</a><a class="next" href="03_mlp_and_feedforward.html"><small>Next →</small>The Multi-Layer Perceptron &amp; Feedforward Networks</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

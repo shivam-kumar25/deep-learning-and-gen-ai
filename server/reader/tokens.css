@@ -1,0 +1,76 @@
+/* =====================================================================
+   Studyloom design tokens: shared by the app and the reader theme.
+   Light = a warm paper desk; dark = an ink desk at night.
+   --h is the hue of the current subject (each subject has one).
+   ===================================================================== */
+:root {
+  --f-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+  --f-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  --h: 245;
+  --paper: #f7f3ec;
+  --paper-2: #efe8dc;
+  --surface: #fffdf9;
+  --surface-2: #faf6ef;
+  --ink: #1c1915;
+  --ink-2: #3f3a33;
+  --muted: #72695d;
+  --faint: #a39a8c;
+  --line: #e7dfd1;
+  --line-2: #d9cebb;
+
+  --brand: #4c44d4;
+  --brand-2: #6d5ff0;
+  --brand-ink: #332c9e;
+  --brand-soft: #ebe8fd;
+  --accent: #e2832f;
+  --accent-soft: #fdebd7;
+  --good: #23824a;
+  --good-soft: #def3e4;
+  --bad: #c03a1c;
+  --bad-soft: #fbe3dc;
+
+
+  --shadow-1: 0 1px 2px rgb(54 40 18 / .06), 0 2px 10px rgb(54 40 18 / .05);
+  --shadow-2: 0 18px 40px -18px rgb(54 40 18 / .28), 0 2px 6px rgb(54 40 18 / .05);
+  --shadow-3: 0 40px 80px -30px rgb(40 28 10 / .35);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--brand) 35%, transparent);
+
+  --r-xs: 8px; --r-s: 12px; --r-m: 18px; --r-l: 26px;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --paper: #0e1016;
+  --paper-2: #13161e;
+  --surface: #171b24;
+  --surface-2: #1c212c;
+  --ink: #eeebe4;
+  --ink-2: #d2cec5;
+  --muted: #9c978e;
+  --faint: #6c6961;
+  --line: #262b36;
+  --line-2: #323947;
+
+  --brand: #8f86ff;
+  --brand-2: #a79fff;
+  --brand-ink: #c3bdff;
+  --brand-soft: #24224a;
+  --accent: #f2a35c;
+  --accent-soft: #3a2614;
+  --good: #5cc581;
+  --good-soft: #15301f;
+  --bad: #f07a5c;
+  --bad-soft: #3a1a12;
+
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .3), 0 2px 10px rgb(0 0 0 / .2);
+  --shadow-2: 0 18px 40px -18px rgb(0 0 0 / .6), 0 2px 6px rgb(0 0 0 / .3);
+  --shadow-3: 0 40px 80px -30px rgb(0 0 0 / .7);
+  color-scheme: dark;
+}
+
+/* tints follow --h: re-declared on every element that sets its own hue (style="--h: …") */
+:root, [style*="--h:"] {   --tint: hsl(var(--h) 62% 94%);   --tint-2: hsl(var(--h) 55% 88%);   --tint-ink: hsl(var(--h) 60% 30%);   --tint-strong: hsl(var(--h) 66% 46%); }
+[data-theme="dark"], [data-theme="dark"] [style*="--h:"] {   --tint: hsl(var(--h) 34% 14%);   --tint-2: hsl(var(--h) 34% 20%);   --tint-ink: hsl(var(--h) 72% 76%);   --tint-strong: hsl(var(--h) 70% 62%); }

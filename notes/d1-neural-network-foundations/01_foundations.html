@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foundations of Deep Learning · Neural Network Foundations · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld1-" data-page="01_foundations">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Neural Network Foundations</a> · <b>Foundations of Deep Learning</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🧠</div><div class="eyebrow">Foundations · note 01</div><h1>Foundations of Deep Learning</h1><div class="lead"><p>The lay of the land: what deep learning is, how it grew out of classical machine learning, and why it took off after 2012. Every later note assumes the pieces this one covers.</p>
+</div></div>
+<section class="sec" id="machine-learning-the-setup" data-num="01" data-title="Machine learning — the setup">
+<h2><span class="num">01</span> Machine learning — the setup</h2>
+<p><em>The idea that motivates all of DL: learning a function from examples.</em></p>
+<h3 id="machine-learning-the-setup-the-classical-ml-picture">The classical ML picture</h3>
+<p>Classical machine learning takes a task like &quot;predict whether an email is spam&quot; and turns it into:</p>
+<ol>
+<li><strong>Collect examples</strong> — pairs of <code>(input, output)</code>.</li>
+<li><strong>Extract features</strong> — write code that turns each input into a hand-designed feature vector (bag-of-words, colour histograms, MFCC coefficients).</li>
+<li><strong>Train a model</strong> — logistic regression, SVM, random forest — on those features.</li>
+<li><strong>Deploy</strong> — the trained model plus your feature extractor.</li>
+</ol>
+<p>The whole game rests on step 2. <strong>A good ML model with bad features cannot recover</strong>, and finding good features is where domain experts spent their careers.</p>
+<h3 id="machine-learning-the-setup-learning-as-function-approximation">Learning as function approximation</h3>
+<p>Every ML problem is really asking: <em>what function maps inputs to outputs?</em></p>
+<div class="tex-d">f_\theta : \mathcal{X} \to \mathcal{Y}</div>
+<p>The parameters <span class="tex">\theta</span> are what we adjust during training. The training objective is to make <span class="tex">f_\theta(x) \approx y</span> on the examples we have, with the hope that the function generalises.</p>
+<h3 id="machine-learning-the-setup-why-the-framing-matters">Why the framing matters</h3>
+<p>DL doesn't overturn this. It changes <strong>where the features come from</strong> — instead of writing them by hand, we let a deep composition of simple operations <em>learn</em> the features from raw data.</p>
+<div class="donebar"><button class="donebtn" data-done="machine-learning-the-setup">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="what-deep-learning-changed" data-num="02" data-title="What &quot;deep&quot; learning changed">
+<h2><span class="num">02</span> What &quot;deep&quot; learning changed</h2>
+<figure class="fig"><img src="images/out/01_foundations-01.png" alt="Traditional ML: a person designs the features and a shallow model learns from them. Deep learning: every stage after the raw input is learned, end to end, by one optimiser." loading="lazy"><figcaption>Traditional ML: a person designs the features and a shallow model learns from them. Deep learning: every stage after the raw input is learned, end to end, by one optimiser.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+def pipeline(ax, y, stages, colors, label):
+    x = 0.0
+    for i, (s, c) in enumerate(zip(stages, colors)):
+        ax.add_patch(FancyBboxPatch((x, y - 0.32), 2.0, 0.64, boxstyle=&quot;round,pad=0.04&quot;, fc=c, ec=&quot;#374151&quot;, lw=1))
+        ax.text(x + 1.0, y, s, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9)
+        if i &lt; len(stages) - 1:
+            ax.annotate(&quot;&quot;, (x + 2.45, y), (x + 2.05, y), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#374151&quot;))
+        x += 2.5
+    ax.text(-0.2, y + 0.55, label, fontsize=10, weight=&quot;bold&quot;, ha=&quot;left&quot;)
+
+fig, ax = plt.subplots(figsize=(10, 3.2))
+human, learned, io = &quot;#fde68a&quot;, &quot;#c7d2fe&quot;, &quot;#e5e7eb&quot;
+pipeline(ax, 2.0, [&quot;raw input&quot;, &quot;hand-made\nfeatures&quot;, &quot;shallow model\n(SVM, LR)&quot;, &quot;output&quot;], [io, human, learned, io], &quot;Traditional ML&quot;)
+pipeline(ax, 0.4, [&quot;raw input&quot;, &quot;learned\nlayer 1&quot;, &quot;learned\nlayer 2 … k&quot;, &quot;output&quot;], [io, learned, learned, io], &quot;Deep learning&quot;)
+ax.add_patch(FancyBboxPatch((2.45, -0.05), 4.6, 0.9, boxstyle=&quot;round,pad=0.04&quot;, fc=&quot;none&quot;, ec=&quot;#4f46e5&quot;, ls=&quot;--&quot;))
+ax.text(4.75, -0.28, &quot;trained together by one optimiser&quot;, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#4f46e5&quot;)
+ax.text(3.5, 2.75, &quot;designed by a person&quot;, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#92400e&quot;)
+ax.set_xlim(-0.3, 10); ax.set_ylim(-0.5, 3.0); ax.axis(&quot;off&quot;)
+plt.show()</pre></div></details>
+<h3 id="what-deep-learning-changed-the-one-line-summary">The one-line summary</h3>
+<p><strong>Deep learning replaces the feature-engineering step with more layers of the same model.</strong></p>
+<p>Instead of:</p>
+<div class="codewrap"><pre class="code" data-lang="text">raw pixels → (human) edge detector → (human) shape features → SVM → label</pre></div>
+<p>You get:</p>
+<div class="codewrap"><pre class="code" data-lang="text">raw pixels → conv layer → conv layer → conv layer → linear layer → label
+                (all layers trained end-to-end by the same optimiser)</pre></div>
+<p>Every layer in the middle is doing &quot;feature extraction&quot; — but the features are <em>learned</em>, not designed.</p>
+<h3 id="what-deep-learning-changed-what-made-it-work">What made it work</h3>
+<p>Three things had to line up around 2012:</p>
+<ul>
+<li><strong>Data.</strong> ImageNet (14M labelled images) and successors provided the scale.</li>
+<li><strong>Compute.</strong> GPUs made training billions of parameter updates feasible.</li>
+<li><strong>Ideas.</strong> ReLU, dropout, batch normalisation, better initialisation, and Adam-family optimisers — mostly small, cumulative improvements.</li>
+</ul>
+<p>Before that, deep networks were too hard to train reliably; classical ML plus hand-crafted features held the lead.</p>
+<h3 id="what-deep-learning-changed-what-deep-actually-means">What &quot;deep&quot; actually means</h3>
+<p>Depth = number of layers between input and output. A logistic regression is a &quot;1-layer network&quot;. A modern vision or language model has anywhere from dozens to hundreds of layers.</p>
+<p>Depth matters because each additional layer can compose the layer below into more abstract concepts:</p>
+<ul>
+<li>Layer 1: edges, gradients.</li>
+<li>Layer 2: corners, textures.</li>
+<li>Layer 3: object parts.</li>
+<li>Layer <span class="tex">k</span>: full objects, scenes, sentences.</li>
+</ul>
+<p>This layered abstraction is what makes DL work on raw high-dimensional data (images, audio, text) where classical ML struggles.</p>
+<div class="donebar"><button class="donebtn" data-done="what-deep-learning-changed">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-ai-ml-dl-venn-diagram" data-num="03" data-title="The AI / ML / DL venn diagram">
+<h2><span class="num">03</span> The AI / ML / DL venn diagram</h2>
+<p><em>Three overlapping fields, often confused. Deep learning is the innermost circle.</em></p>
+<p><strong>Artificial Intelligence</strong> (biggest circle) — anything that makes computers appear intelligent. Rule-based expert systems, chess engines, planning algorithms, Prolog theorem provers. Predates ML.</p>
+<p><strong>Machine Learning</strong> (middle) — the subset of AI that learns from data. Linear regression, decision trees, k-means, SVMs.</p>
+<p><strong>Deep Learning</strong> (innermost) — the subset of ML that uses deep neural networks. CNNs, RNNs, transformers.</p>
+<p>Genuine AI applications today are almost always ML applications; and the ML that gets deployed on hard perceptual tasks (vision, speech, language) is almost always DL. The three terms often get used interchangeably in press coverage — that's imprecise but usually forgivable.</p>
+<div class="donebar"><button class="donebtn" data-done="the-ai-ml-dl-venn-diagram">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="applications-where-dl-wins" data-num="04" data-title="Applications — where DL wins">
+<h2><span class="num">04</span> Applications — where DL wins</h2>
+<p><em>A survey of what deep learning is actually used for today.</em></p>
+<h3 id="applications-where-dl-wins-computer-vision">Computer vision</h3>
+<ul>
+<li><strong>Image classification</strong> — cat vs dog; medical images (tumour vs healthy).</li>
+<li><strong>Object detection &amp; segmentation</strong> — self-driving perception, satellite imagery.</li>
+<li><strong>Image generation</strong> — Stable Diffusion, DALL-E, Midjourney.</li>
+<li><strong>Face recognition</strong> — phone unlock, security.</li>
+</ul>
+<h3 id="applications-where-dl-wins-natural-language">Natural language</h3>
+<ul>
+<li><strong>Translation</strong> — Google Translate.</li>
+<li><strong>Text generation &amp; dialogue</strong> — ChatGPT, Claude, Gemini.</li>
+<li><strong>Speech recognition &amp; synthesis</strong> — Alexa, Siri, dictation apps.</li>
+<li><strong>Sentiment analysis, classification</strong> — moderation, spam filtering.</li>
+</ul>
+<h3 id="applications-where-dl-wins-structured-scientific">Structured &amp; scientific</h3>
+<ul>
+<li><strong>Protein structure prediction</strong> — AlphaFold.</li>
+<li><strong>Drug discovery</strong> — molecular property prediction.</li>
+<li><strong>Materials science, weather forecasting</strong> — GraphCast, Ithaca.</li>
+<li><strong>Game playing</strong> — AlphaGo, MuZero.</li>
+</ul>
+<h3 id="applications-where-dl-wins-where-dl-is-not-the-answer">Where DL is <em>not</em> the answer</h3>
+<p>Not everything needs deep learning. If you have:</p>
+<ul>
+<li><strong>Small tabular data</strong> (&lt; 10k rows) → classical ML (gradient boosting) usually wins.</li>
+<li><strong>A hard-coded set of business rules</strong> → don't learn what you can specify.</li>
+<li><strong>Very low-latency, embedded, or interpretability-critical settings</strong> → classical models may be preferred.</li>
+</ul>
+<p>DL earns its complexity when you have (a) enough data, (b) enough compute, and (c) a task that resists hand-designed features.</p>
+<div class="donebar"><button class="donebtn" data-done="applications-where-dl-wins">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="limitations-of-traditional-ml" data-num="05" data-title="Limitations of traditional ML">
+<h2><span class="num">05</span> Limitations of traditional ML</h2>
+<h3 id="limitations-of-traditional-ml-feature-engineering-is-expensive">Feature engineering is expensive</h3>
+<p>For every new domain, someone has to design features. Medical imaging, astronomy, retail forecasting, speech, natural language — each has its own feature-engineering literature that took decades to build.</p>
+<p>DL amortises this cost: the same architecture (CNN for images, transformer for sequences) works across many problems in a domain, with only the data changing.</p>
+<h3 id="limitations-of-traditional-ml-classical-models-dont-scale-with-data">Classical models don't scale with data</h3>
+<p>Roughly:</p>
+<ul>
+<li><strong>Small data (~thousands)</strong> — classical ML (SVM, gradient boosting) usually wins.</li>
+<li><strong>Medium data (~millions)</strong> — classical ML plateaus; DL catches up.</li>
+<li><strong>Big data (~billions)</strong> — classical ML is nowhere; DL keeps improving.</li>
+</ul>
+<p>The bigger the dataset, the more DL pulls ahead. Modern LLMs are the extreme end of this curve.</p>
+<h3 id="limitations-of-traditional-ml-raw-high-dimensional-data-is-a-losing-battle-for-classical-ml">Raw high-dimensional data is a losing battle for classical ML</h3>
+<p>A 256×256 colour image = 196,608 pixel values. No SVM, no random forest, no logistic regression eats that directly. You had to reduce it to features first.</p>
+<p>CNNs eat raw pixels. Transformers eat raw tokens. That's the shift.</p>
+<div class="donebar"><button class="donebtn" data-done="limitations-of-traditional-ml">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-learning-path-how-the-rest-of-the-course-fits" data-num="06" data-title="The learning path — how the rest of the course fits">
+<h2><span class="num">06</span> The learning path — how the rest of the course fits</h2>
+<p><em>Every note is a step along one connected story. Read them in this order.</em></p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Note</th>
+<th style="text-align:left">Topic</th>
+<th style="text-align:left">What you learn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>01</strong></td>
+<td style="text-align:left">Foundations <em>(you are here)</em></td>
+<td style="text-align:left">The landscape, terminology, motivation</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>02</strong></td>
+<td style="text-align:left"><a href="../d1-neural-network-foundations/02_neuron_and_perceptron.html">The neuron and the perceptron</a></td>
+<td style="text-align:left">Biological neuron → M-P neuron → perceptron → why XOR breaks it</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>03</strong></td>
+<td style="text-align:left"><a href="../d1-neural-network-foundations/03_mlp_and_feedforward.html">MLPs and the forward pass</a></td>
+<td style="text-align:left">Stacking layers, the forward pass in matrix form, the universal approximation theorem</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>04</strong></td>
+<td style="text-align:left"><a href="../d1-neural-network-foundations/04_activation_functions.html">Activation functions</a></td>
+<td style="text-align:left">Sigmoid, tanh, the ReLU family, how to choose</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>05</strong></td>
+<td style="text-align:left"><a href="../d2-training-neural-networks/05_loss_functions.html">Loss functions</a></td>
+<td style="text-align:left">MSE, cross-entropy, softmax</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>06</strong></td>
+<td style="text-align:left"><a href="../d2-training-neural-networks/06_gradient_descent.html">Gradient descent</a></td>
+<td style="text-align:left">GD, SGD, momentum, Adam, learning-rate schedules</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>07</strong></td>
+<td style="text-align:left"><a href="../d2-training-neural-networks/07_backpropagation.html">Backpropagation</a></td>
+<td style="text-align:left">The chain rule and the backward pass, worked by hand</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>08</strong></td>
+<td style="text-align:left"><a href="../d2-training-neural-networks/08_xor_problem.html">The XOR network end to end</a></td>
+<td style="text-align:left">Every number of a tiny network, forward and backward</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>09</strong></td>
+<td style="text-align:left"><a href="../d2-training-neural-networks/09_regularisation.html">Regularisation</a></td>
+<td style="text-align:left">Overfitting, dropout, batch norm, weight decay</td>
+</tr>
+</tbody>
+</table></div>
+<p>After note 09 you have every conceptual piece behind the code in the PyTorch notes (D3), the convolutional networks (D4) and the projects (D5), and you will know <em>why</em> each line is there.</p>
+<div class="donebar"><button class="donebtn" data-done="the-learning-path-how-the-rest-of-the-course-fits">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-dl-vs-classical-ml-on-non-linear-data" data-num="07" data-title="Runnable demo — DL vs classical ML on non-linear data">
+<h2><span class="num">07</span> Runnable demo — DL vs classical ML on non-linear data</h2>
+<p><em>The clearest way to feel the DL vs ML difference: give both a task that plain features can't solve.</em></p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_moons
+from sklearn.linear_model import LogisticRegression
+from sklearn.neural_network import MLPClassifier
+
+# Two interlocking half-moons — a classic non-linearly-separable dataset
+X, y = make_moons(n_samples=400, noise=0.2, random_state=0)
+
+plt.figure(figsize=(6, 4))
+plt.scatter(X[:, 0], X[:, 1], c=y, cmap=&#x27;coolwarm&#x27;, edgecolors=&#x27;k&#x27;)
+plt.title(&#x27;make_moons — not linearly separable&#x27;)
+plt.xlabel(&#x27;x1&#x27;); plt.ylabel(&#x27;x2&#x27;); plt.grid(alpha=0.3)
+plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/01_foundations-02.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-dl-vs-classical-ml-on-non-linear-data-fit-both-a-linear-model-and-a-shallow-neural-network">Fit both a linear model and a shallow neural network</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Linear model — one-layer perceptron
+lr = LogisticRegression().fit(X, y)
+
+# Deep-ish network — 2 hidden layers of 16 units, tanh activation, trained by Adam.
+# learning_rate_init=0.01: with the default 0.001 the loss falls so slowly that scikit-learn&#x27;s
+# &quot;no improvement&quot; rule stops training at ~88%, barely better than the straight line.
+mlp = MLPClassifier(hidden_layer_sizes=(16, 16), activation=&#x27;tanh&#x27;, solver=&#x27;adam&#x27;,
+                    learning_rate_init=0.01, max_iter=2000, random_state=0).fit(X, y)
+
+print(f&quot;Logistic Regression accuracy: {lr.score(X, y):.3f}&quot;)
+print(f&quot;MLP (2 hidden layers)  accuracy: {mlp.score(X, y):.3f}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Logistic Regression accuracy: 0.875
+MLP (2 hidden layers)  accuracy: 0.968</pre></div></div></div>
+<h3 id="runnable-demo-dl-vs-classical-ml-on-non-linear-data-visualise-the-decision-boundaries">Visualise the decision boundaries</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def plot_boundary(model, X, y, ax, title):
+    x_min, x_max = X[:, 0].min() - 0.5, X[:, 0].max() + 0.5
+    y_min, y_max = X[:, 1].min() - 0.5, X[:, 1].max() + 0.5
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200),
+                         np.linspace(y_min, y_max, 200))
+    Z = model.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+    ax.contourf(xx, yy, Z, alpha=0.3, cmap=&#x27;coolwarm&#x27;)
+    ax.scatter(X[:, 0], X[:, 1], c=y, cmap=&#x27;coolwarm&#x27;, edgecolors=&#x27;k&#x27;, s=25)
+    ax.set_title(title); ax.set_xlabel(&#x27;x1&#x27;); ax.set_ylabel(&#x27;x2&#x27;)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+plot_boundary(lr,  X, y, axes[0], f&#x27;linear model — acc={lr.score(X, y):.2f}&#x27;)
+plot_boundary(mlp, X, y, axes[1], f&#x27;MLP (16-16, tanh) — acc={mlp.score(X, y):.2f}&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/01_foundations-03.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-dl-vs-classical-ml-on-non-linear-data-what-just-happened">What just happened</h3>
+<p>The linear model can only draw a straight line — and no straight line separates two interlocking crescents, so it is stuck near 88%. The MLP reaches about 97%: with noise this large a few points sit inside the other moon, and no sensible boundary gets them. The MLP, with two small hidden layers and non-linear activations, learns a curved decision boundary that follows the data.</p>
+<p>You just watched the &quot;why we needed deep learning&quot; argument in miniature. The next notes fill in the mechanics of <em>how</em> the MLP did it.</p>
+<ul>
+<li><strong>Note 02</strong> — the single-unit ancestor of the MLP.</li>
+<li><strong>Note 03</strong> — how the layers stack.</li>
+<li><strong>Note 04</strong> — why we chose <code>tanh</code> above.</li>
+<li><strong>Note 05</strong> — what the MLP was minimising.</li>
+<li><strong>Notes 06 and 07</strong> — how Adam actually updated the weights.</li>
+<li><strong>Note 09</strong> — how to keep it from memorising the training set.</li>
+</ul>
+<div class="callout tip"><div class="ic">💡</div><div><p>Every cell on this page runs on a live Python kernel on your computer, and cells share their variables like a notebook. Change <code>noise=0.2</code> to <code>0.35</code>, or <code>hidden_layer_sizes=(16, 16)</code> to <code>(2,)</code>, and run the cells again to see the boundary change. <strong>+ cell</strong> under any cell gives you a scratch cell of your own.</p>
+</div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-dl-vs-classical-ml-on-non-linear-data">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="index.html"><small>← Back to</small>Neural Network Foundations index</a><a class="next" href="02_neuron_and_perceptron.html"><small>Next →</small>From Biology to the Perceptron</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

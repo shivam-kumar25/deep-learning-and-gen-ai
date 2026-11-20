@@ -1,0 +1,7 @@
+{
+  "name": "ml-notes-tests",
+  "private": true,
+  "type": "module",
+  "description": "Browser checks for the ML notes (screenshots, running Python cells in Pyodide).",
+  "dependencies": { "puppeteer-core": "^24.0.0" }
+}
