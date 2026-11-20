@@ -27,7 +27,7 @@ const day = "2026-11-12";
 test("catalogue is built from the notes", async () => {
   const r = await client()("/api/stats");
   assert.equal(r.status, 200);
-  assert.ok(r.json.notes === 4 && r.json.subjects === 1 && r.json.questions === 0, JSON.stringify(r.json));
+  assert.ok(r.json.notes === 9 && r.json.subjects === 2 && r.json.questions === 0, JSON.stringify(r.json));
 });
 
 test("the DL subjects come in course order, theory first", async () => {
@@ -36,7 +36,7 @@ test("the DL subjects come in course order, theory first", async () => {
   assert.equal(subjects[0].track, "theory");
   assert.deepEqual(subjects.map(s => s.num), [...subjects.map(s => s.num)].sort());
   assert.equal(notes.find(n => n.subject_id === "d1-neural-network-foundations").path, "d1-neural-network-foundations/01_foundations.html");
-  assert.deepEqual(subjects.map(s => s.track), ["theory"]);   // grows as D2–D5 are written
+  assert.deepEqual(subjects.map(s => s.track), ["theory", "theory"]);   // grows as D2–D5 are written
 });
 
 test("sign up, session cookie, me, logout", async () => {

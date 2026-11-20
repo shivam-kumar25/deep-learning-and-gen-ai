@@ -1,0 +1,35 @@
+{
+ "conv": "tools/notes/.tmp/conv/d2",
+ "src": "tools/notes/src/d2-training-neural-networks",
+ "notes_dir": "notes/d2-training-neural-networks",
+ "img_root": "deep-learning",
+ "eyebrow": "Training",
+ "badge": "📉",
+ "pages": {
+  "05_loss_functions": {
+   "number": "05"
+  },
+  "06_gradient_descent": {
+   "number": "06"
+  },
+  "07_backpropagation": {
+   "number": "07"
+  },
+  "08_xor_problem": {
+   "number": "08"
+  },
+  "09_regularisation": {
+   "number": "09"
+  }
+ },
+ "renumber": {
+  "[Nn]otebook 0": "note 01",
+  "[Nn]otebook 1": "note 02",
+  "[Nn]otebook 2": "note 03",
+  "[Nn]otebook 3": "note 04",
+  "[Nn]otebook 4": "note 05",
+  "[Nn]otebook 5": "note 06",
+  "[Nn]otebook 6": "note 07",
+  "[Nn]otebook 7": "note 09"
+ }
+}

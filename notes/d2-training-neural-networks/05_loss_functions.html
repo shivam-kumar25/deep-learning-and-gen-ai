@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loss Functions · Training Neural Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld2-" data-page="05_loss_functions">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Training Neural Networks</a> · <b>Loss Functions</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">📉</div><div class="eyebrow">Training · note 05</div><h1>Loss Functions</h1><div class="lead"><p>The score the optimiser is trying to minimise. Regression tasks use MSE; classification tasks use cross-entropy. This note derives both, works them by hand, and covers when to use each.</p>
+</div></div>
+<section class="sec" id="what-a-loss-function-is" data-num="01" data-title="What a loss function is">
+<h2><span class="num">01</span> What a loss function is</h2>
+<p><em>A single number that measures &quot;how wrong is the model on this batch&quot;. The whole training loop is about making it smaller.</em></p>
+<h3 id="what-a-loss-function-is-the-three-piece-picture">The three-piece picture</h3>
+<p>Every supervised training step needs three things:</p>
+<ol>
+<li><strong>A model</strong> <span class="tex">f_\theta</span> producing predictions <span class="tex">\hat{y} = f_\theta(x)</span>.</li>
+<li><strong>True targets</strong> <span class="tex">y</span>.</li>
+<li><strong>A loss function</strong> <span class="tex">L(y, \hat{y})</span> that returns a scalar.</li>
+</ol>
+<p>The optimiser adjusts <span class="tex">\theta</span> to reduce <span class="tex">L</span> averaged over the training set.</p>
+<h3 id="what-a-loss-function-is-requirements">Requirements</h3>
+<p>A good loss function should:</p>
+<ul>
+<li><strong>Return a scalar.</strong> You can't backprop through a vector loss without collapsing it first.</li>
+<li><strong>Be differentiable</strong> with respect to <span class="tex">\hat{y}</span> (and therefore <span class="tex">\theta</span>).</li>
+<li><strong>Match the task.</strong> Regression losses assume real-valued outputs; classification losses assume probabilities.</li>
+<li><strong>Have a sensible minimum.</strong> <span class="tex">L = 0</span> should mean &quot;perfect predictions&quot;.</li>
+</ul>
+<h3 id="what-a-loss-function-is-the-two-dominant-losses">The two dominant losses</h3>
+<ul>
+<li><strong>MSE (Mean Squared Error)</strong> — for regression.</li>
+<li><strong>Cross-entropy</strong> — for classification.</li>
+</ul>
+<p>Almost everything else in DL is a variant of these two.</p>
+<div class="donebar"><button class="donebtn" data-done="what-a-loss-function-is">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="mean-squared-error-for-regression" data-num="02" data-title="Mean Squared Error — for regression">
+<h2><span class="num">02</span> Mean Squared Error — for regression</h2>
+<figure class="fig"><img src="images/out/05_loss_functions-01.png" alt="MSE for regression: each red segment is one error yᵢ − ŷᵢ. Squaring makes every error positive and makes the big ones count much more; the mean of the squares is the loss." loading="lazy"><figcaption>MSE for regression: each red segment is one error yᵢ − ŷᵢ. Squaring makes every error positive and makes the big ones count much more; the mean of the squares is the loss.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(3)
+x = np.linspace(0, 10, 12); y = 1.2 * x + 2 + rng.normal(0, 1.6, x.size)
+y[8] += 6                                                   # one outlier
+w, b = 1.2, 2.0                                             # a model&#x27;s line
+yhat = w * x + b
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.8), gridspec_kw={&quot;width_ratios&quot;: [1.4, 1]})
+ax = axes[0]
+ax.plot(x, yhat, color=&quot;#2563eb&quot;, lw=2, label=&quot;model ŷ = 1.2x + 2&quot;)
+ax.vlines(x, yhat, y, color=&quot;#dc2626&quot;, lw=1.6, label=&quot;errors yᵢ − ŷᵢ&quot;)
+ax.scatter(x, y, color=&quot;k&quot;, zorder=3, label=&quot;data yᵢ&quot;)
+ax.annotate(&quot;outlier&quot;, (x[8], y[8]), (x[8] - 3.2, y[8] + 1), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;), fontsize=9)
+ax.set_xlabel(&quot;x&quot;); ax.set_ylabel(&quot;y&quot;); ax.legend(fontsize=8.5); ax.grid(alpha=0.3)
+ax.set_title(f&quot;MSE = {np.mean((y - yhat) ** 2):.2f}&quot;, fontsize=10)
+ax = axes[1]
+sq = (y - yhat) ** 2
+ax.bar(range(x.size), sq, color=[&quot;#dc2626&quot; if i == 8 else &quot;#fca5a5&quot; for i in range(x.size)])
+ax.set_xlabel(&quot;example i&quot;); ax.set_ylabel(&quot;(yᵢ − ŷᵢ)²&quot;); ax.grid(alpha=0.3, axis=&quot;y&quot;)
+ax.set_title(f&quot;the outlier is {sq[8] / sq.sum():.0%} of the total&quot;, fontsize=10)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="mean-squared-error-for-regression-the-definition">The definition</h3>
+<p>For <span class="tex">N</span> examples:</p>
+<div class="tex-d">\text{MSE} \;=\; \frac{1}{N} \sum_{i=1}^{N} \bigl(y_i - \hat{y}_i\bigr)^2</div>
+<p><strong>Zero when perfect.</strong> Always non-negative. Grows quadratically with error, so outliers dominate.</p>
+<h3 id="mean-squared-error-for-regression-worked-example">Worked example</h3>
+<p>Four predictions and truths:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center"><span class="tex">y_i</span></th>
+<th style="text-align:center"><span class="tex">\hat{y}_i</span></th>
+<th style="text-align:center"><span class="tex">(y_i - \hat{y}_i)^2</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">3</td>
+<td style="text-align:center">2.5</td>
+<td style="text-align:center">0.25</td>
+</tr>
+<tr>
+<td style="text-align:center">5</td>
+<td style="text-align:center">6</td>
+<td style="text-align:center">1.00</td>
+</tr>
+<tr>
+<td style="text-align:center">4</td>
+<td style="text-align:center">4</td>
+<td style="text-align:center">0.00</td>
+</tr>
+<tr>
+<td style="text-align:center">6</td>
+<td style="text-align:center">7.5</td>
+<td style="text-align:center">2.25</td>
+</tr>
+</tbody>
+</table></div>
+<div class="tex-d">\text{MSE} = \frac{0.25 + 1.00 + 0.00 + 2.25}{4} = 0.875</div>
+<h3 id="mean-squared-error-for-regression-the-gradient">The gradient</h3>
+<div class="tex-d">\frac{\partial \text{MSE}}{\partial \hat{y}_i} \;=\; \frac{2 (\hat{y}_i - y_i)}{N}</div>
+<p>Linear in the error — big mistakes get big gradients. That's what makes it well-behaved for gradient descent.</p>
+<h3 id="mean-squared-error-for-regression-mse-vs-mae">MSE vs MAE</h3>
+<p><strong>Mean Absolute Error:</strong></p>
+<div class="tex-d">\text{MAE} \;=\; \frac{1}{N} \sum_{i=1}^{N} |y_i - \hat{y}_i|</div>
+<ul>
+<li>MSE penalises big errors more (squared). Sensitive to outliers.</li>
+<li>MAE penalises all errors linearly. Robust to outliers.</li>
+<li>MSE is smoother — better for gradient descent. MAE is not differentiable at 0.</li>
+</ul>
+<p><strong>Huber loss</strong> blends the two — MSE for small errors, MAE for large ones. Best of both.</p>
+<h3 id="mean-squared-error-for-regression-when-to-use-mse">When to use MSE</h3>
+<ul>
+<li><strong>Regression outputs</strong> — predicting a house price, temperature, gene expression.</li>
+<li><strong>Reconstruction losses</strong> in autoencoders.</li>
+<li><strong>Not for classification.</strong> With a sigmoid output, the MSE gradient is <span class="tex">2(\hat{y} - y)\,\sigma&#x27;(z)</span>, and <span class="tex">\sigma&#x27;(z) \approx 0</span> exactly when the model is confidently wrong, so the worst mistakes barely get corrected. Cross-entropy's gradient with respect to <span class="tex">z</span> is just <span class="tex">\hat{y} - y</span> (see below), which stays large.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="mean-squared-error-for-regression">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="cross-entropy-for-classification" data-num="03" data-title="Cross-Entropy — for classification">
+<h2><span class="num">03</span> Cross-Entropy — for classification</h2>
+<figure class="fig"><img src="images/out/05_loss_functions-02.png" alt="Cross-entropy compares the predicted distribution with the one-hot truth and only looks at the probability given to the true class: −log of it. A confident right answer costs little; a confident wrong one costs a lot." loading="lazy"><figcaption>Cross-entropy compares the predicted distribution with the one-hot truth and only looks at the probability given to the true class: −log of it. A confident right answer costs little; a confident wrong one costs a lot.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+classes = [&quot;cat&quot;, &quot;dog&quot;, &quot;bird&quot;]; truth = np.array([0, 1, 0])
+preds = {&quot;confident and right&quot;: [0.10, 0.70, 0.20], &quot;unsure&quot;: [0.30, 0.40, 0.30], &quot;confident and wrong&quot;: [0.05, 0.05, 0.90]}
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.4), sharey=True)
+for ax, (name, p) in zip(axes, preds.items()):
+    p = np.array(p)
+    ax.bar(np.arange(3) - 0.2, truth, width=0.4, color=&quot;#d1d5db&quot;, label=&quot;truth (one-hot)&quot;)
+    ax.bar(np.arange(3) + 0.2, p, width=0.4, color=[&quot;#2563eb&quot; if k == 1 else &quot;#93c5fd&quot; for k in range(3)], label=&quot;prediction&quot;)
+    ax.set_xticks(range(3), classes); ax.set_ylim(0, 1.15)
+    ax.set_title(f&quot;{name}\nCE = −log {p[1]:.2f} = {-np.log(p[1]):.2f}&quot;, fontsize=10)
+axes[0].legend(fontsize=8, loc=&quot;upper left&quot;); axes[0].set_ylabel(&quot;probability&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="cross-entropy-for-classification-the-intuition">The intuition</h3>
+<p>If the true class is A and the model says &quot;A: 0.9&quot;, cross-entropy is small. If it says &quot;A: 0.1&quot;, cross-entropy is huge. The loss punishes <em>confidently wrong</em> predictions much more than <em>uncertainly wrong</em> ones.</p>
+<h3 id="cross-entropy-for-classification-binary-cross-entropy-bce">Binary Cross-Entropy (BCE)</h3>
+<p>For a single binary label <span class="tex">y \in \{0, 1\}</span> and predicted probability <span class="tex">\hat{y} \in (0, 1)</span>:</p>
+<div class="tex-d">\text{BCE}(y, \hat{y}) \;=\; -\bigl[y \log \hat{y} + (1 - y) \log (1 - \hat{y})\bigr]</div>
+<ul>
+<li>If <span class="tex">y = 1</span>: loss <span class="tex">= -\log \hat{y}</span>. Predict 0.99 → loss ≈ 0.01. Predict 0.01 → loss ≈ 4.6.</li>
+<li>If <span class="tex">y = 0</span>: loss <span class="tex">= -\log(1 - \hat{y})</span>. Mirror image.</li>
+</ul>
+<p>Pairs with a <strong>sigmoid</strong> output layer.</p>
+<h3 id="cross-entropy-for-classification-categorical-cross-entropy">Categorical Cross-Entropy</h3>
+<p>For <span class="tex">K</span> classes with a one-hot target <span class="tex">\mathbf{y} \in \{0, 1\}^K</span> and predicted probability vector <span class="tex">\hat{\mathbf{y}} \in \Delta^K</span> (from softmax):</p>
+<div class="tex-d">\text{CE}(\mathbf{y}, \hat{\mathbf{y}}) \;=\; -\sum_{k=1}^{K} y_k \log \hat{y}_k</div>
+<p>Since only one <span class="tex">y_k = 1</span> (the true class), this simplifies to <span class="tex">-\log \hat{y}_{\text{true}}</span> — just the negative log probability the model assigned to the right answer.</p>
+<h3 id="cross-entropy-for-classification-worked-example">Worked example</h3>
+<p>True class: <span class="tex">y = [0, 1, 0]</span>.
+Predicted: <span class="tex">\hat{y} = [0.1, 0.7, 0.2]</span>.</p>
+<div class="tex-d">\text{CE} = -(0 \cdot \log 0.1 + 1 \cdot \log 0.7 + 0 \cdot \log 0.2) = -\log 0.7 \approx 0.357</div>
+<p>If the model had predicted <span class="tex">[0.05, 0.05, 0.9]</span> (wrong):</p>
+<div class="tex-d">\text{CE} = -\log 0.05 \approx 3.00</div>
+<p>Confidently wrong costs about 8× as much as moderately right (<span class="tex">3.00 / 0.357</span>).</p>
+<h3 id="cross-entropy-for-classification-why-the-log">Why the log</h3>
+<p>The log turns products into sums. Under the maximum-likelihood-estimation framework, minimising cross-entropy is exactly maximising the likelihood of the observed labels under the model. The log falls out of that derivation.</p>
+<div class="donebar"><button class="donebtn" data-done="cross-entropy-for-classification">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="softmax-cross-entropy" data-num="04" data-title="Softmax + Cross-Entropy">
+<h2><span class="num">04</span> Softmax + Cross-Entropy</h2>
+<p><em>The pair you see in every classification network. Beautiful math, one detail to know.</em></p>
+<h3 id="softmax-cross-entropy-the-composed-function">The composed function</h3>
+<p>The output layer produces raw logits <span class="tex">z_k</span>. Softmax converts them to probabilities:</p>
+<div class="tex-d">\hat{y}_k \;=\; \frac{e^{z_k}}{\sum_j e^{z_j}}</div>
+<p>Cross-entropy scores:</p>
+<div class="tex-d">L \;=\; -\log \hat{y}_{\text{true}}</div>
+<h3 id="softmax-cross-entropy-the-remarkable-derivative">The remarkable derivative</h3>
+<p>When you combine softmax + cross-entropy, the gradient with respect to the logits simplifies beautifully:</p>
+<div class="tex-d">\frac{\partial L}{\partial z_k} \;=\; \hat{y}_k - y_k</div>
+<p>Just the predicted probability minus the true label. No softmax derivative to compute. This is why every framework fuses them into one function (<code>nn.CrossEntropyLoss</code>, <code>tf.nn.softmax_cross_entropy_with_logits</code>) — for numerical stability and speed.</p>
+<h3 id="softmax-cross-entropy-pass-logits-not-probabilities">Pass logits, not probabilities</h3>
+<p>Modern frameworks want you to pass the <em>raw logits</em> to their cross-entropy function, not the softmax outputs. Two reasons:</p>
+<ul>
+<li><strong>Numerical stability.</strong> Doing softmax + log separately can overflow.</li>
+<li><strong>Efficiency.</strong> The fused version uses the identity above.</li>
+</ul>
+<p>Rule of thumb: <strong>your last linear layer should output logits; the loss function computes softmax internally.</strong></p>
+<div class="donebar"><button class="donebtn" data-done="softmax-cross-entropy">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="other-common-losses" data-num="05" data-title="Other common losses">
+<h2><span class="num">05</span> Other common losses</h2>
+<h3 id="other-common-losses-regression-losses">Regression losses</h3>
+<ul>
+<li><strong>Huber loss</strong> — MSE for small errors, MAE for large. Outlier-robust.</li>
+<li><strong>Log-cosh loss</strong> — smooth approximation to MAE.</li>
+<li><strong>Quantile loss</strong> — for predicting percentiles (e.g., 90th percentile forecast).</li>
+</ul>
+<h3 id="other-common-losses-classification-losses">Classification losses</h3>
+<ul>
+<li><strong>Focal loss</strong> — down-weights easy examples, focuses on hard ones. Used in object detection (RetinaNet).</li>
+<li><strong>Label-smoothing cross-entropy</strong> — targets <span class="tex">y = 1 - \epsilon</span> instead of <span class="tex">1.0</span>. Improves calibration and generalisation.</li>
+<li><strong>Hinge loss</strong> — the SVM loss. Used in max-margin classifiers.</li>
+</ul>
+<h3 id="other-common-losses-metric-learning-losses">Metric-learning losses</h3>
+<ul>
+<li><strong>Contrastive loss</strong> — same-class pairs should be near, different-class pairs far.</li>
+<li><strong>Triplet loss</strong> — anchor, positive, negative — used in face recognition (FaceNet).</li>
+<li><strong>NT-Xent / InfoNCE</strong> — the workhorse of self-supervised learning (SimCLR, CLIP).</li>
+</ul>
+<h3 id="other-common-losses-sequence-generation">Sequence &amp; generation</h3>
+<ul>
+<li><strong>CTC loss</strong> — for speech / handwriting recognition without pre-aligned labels.</li>
+<li><strong>KL divergence</strong> — matches one distribution to another. Used in VAEs, knowledge distillation.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="other-common-losses">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="guide-for-choosing" data-num="06" data-title="Guide for choosing">
+<h2><span class="num">06</span> Guide for choosing</h2>
+<h3 id="guide-for-choosing-the-decision-table">The decision table</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Task</th>
+<th style="text-align:left">Output layer</th>
+<th style="text-align:left">Loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Regression</td>
+<td style="text-align:left">linear</td>
+<td style="text-align:left"><strong>MSE</strong> (or Huber for outliers)</td>
+</tr>
+<tr>
+<td style="text-align:left">Binary classification</td>
+<td style="text-align:left"><strong>sigmoid</strong></td>
+<td style="text-align:left"><strong>BCE</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Multi-class classification</td>
+<td style="text-align:left"><strong>softmax</strong></td>
+<td style="text-align:left"><strong>Categorical CE</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Multi-label classification</td>
+<td style="text-align:left"><strong>K sigmoids</strong></td>
+<td style="text-align:left"><strong>BCE per class</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Object detection</td>
+<td style="text-align:left">sigmoid + softmax + linear</td>
+<td style="text-align:left"><strong>Focal + smooth L1 + CE</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Speech / handwriting</td>
+<td style="text-align:left">softmax</td>
+<td style="text-align:left"><strong>CTC</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Face recognition, retrieval</td>
+<td style="text-align:left">linear (embedding)</td>
+<td style="text-align:left"><strong>Triplet</strong> or <strong>contrastive</strong></td>
+</tr>
+<tr>
+<td style="text-align:left">Autoencoder</td>
+<td style="text-align:left">linear or sigmoid</td>
+<td style="text-align:left"><strong>MSE</strong> or <strong>BCE</strong> on reconstruction</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="guide-for-choosing-the-two-heuristics">The two heuristics</h3>
+<ol>
+<li><strong>Match the output to the loss.</strong> MSE + softmax is a common bug. Sigmoid + categorical-CE is another. Use MSE with linear, sigmoid with BCE, softmax with categorical-CE.</li>
+<li><strong>Reach for the special-purpose loss only when you have a special-purpose problem.</strong> BCE and CE handle 95% of classification cases.</li>
+</ol>
+<div class="donebar"><button class="donebtn" data-done="guide-for-choosing">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo" data-num="07" data-title="Runnable demo">
+<h2><span class="num">07</span> Runnable demo</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+# --- MSE ---
+def mse(y, y_hat):
+    return np.mean((y - y_hat) ** 2)
+
+y      = np.array([3, 5, 4, 6], dtype=float)
+y_hat  = np.array([2.5, 6, 4, 7.5])
+print(f&quot;MSE hand example: {mse(y, y_hat)}   (expected 0.875)&quot;)
+
+# Show MSE vs. prediction — a parabola around the true value
+truth = 5.0
+preds = np.linspace(0, 10, 200)
+losses = (truth - preds) ** 2
+plt.figure(figsize=(7, 4))
+plt.plot(preds, losses); plt.axvline(truth, color=&#x27;green&#x27;, ls=&#x27;--&#x27;, label=&#x27;truth = 5&#x27;)
+plt.title(&#x27;Squared error as a function of prediction&#x27;)
+plt.xlabel(&#x27;prediction&#x27;); plt.ylabel(&#x27;(truth - pred)^2&#x27;)
+plt.grid(alpha=0.3); plt.legend()
+plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>MSE hand example: 0.875   (expected 0.875)</pre></div><div class="orow plot"><img src="images/out/05_loss_functions-03.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-cross-entropy-cost-of-being-confidently-wrong">Cross-entropy — cost of being confidently wrong</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def bce(y, y_hat, eps=1e-12):
+    y_hat = np.clip(y_hat, eps, 1 - eps)
+    return -(y * np.log(y_hat) + (1 - y) * np.log(1 - y_hat))
+
+probs = np.linspace(0.01, 0.99, 200)
+
+plt.figure(figsize=(7, 4))
+plt.plot(probs, bce(1, probs), label=&#x27;y = 1  (loss = -log p)&#x27;, lw=2)
+plt.plot(probs, bce(0, probs), label=&#x27;y = 0  (loss = -log(1-p))&#x27;, lw=2)
+plt.axhline(0, color=&#x27;gray&#x27;, lw=0.5)
+plt.title(&#x27;Binary Cross-Entropy — the punishment curve&#x27;)
+plt.xlabel(&#x27;predicted probability of class 1&#x27;)
+plt.ylabel(&#x27;BCE loss&#x27;)
+plt.grid(alpha=0.3); plt.legend()
+plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/05_loss_functions-04.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-categorical-cross-entropy-on-a-3-class-prediction">Categorical cross-entropy on a 3-class prediction</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def softmax(z):
+    z = z - z.max(); e = np.exp(z); return e / e.sum()
+
+def cross_entropy(y_onehot, y_hat, eps=1e-12):
+    y_hat = np.clip(y_hat, eps, 1 - eps)
+    return -np.sum(y_onehot * np.log(y_hat))
+
+logits_good = np.array([0.5, 3.0, 0.8])       # confident about class 1
+logits_bad  = np.array([2.5, 0.5, 0.8])       # confident about class 0 — wrong
+logits_meh  = np.array([1.0, 1.1, 0.9])       # uncertain
+
+true = np.array([0, 1, 0])                     # true class is 1
+
+for name, z in [(&#x27;confident right&#x27;, logits_good),
+                (&#x27;confident WRONG&#x27;, logits_bad),
+                (&#x27;uncertain&#x27;,       logits_meh)]:
+    p = softmax(z)
+    ce = cross_entropy(true, p)
+    print(f&quot;{name:18s}  probs = {p.round(3)}   CE = {ce:.4f}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>confident right     probs = [0.069 0.838 0.093]   CE = 0.1764
+confident WRONG     probs = [0.759 0.103 0.139]   CE = 2.2761
+uncertain           probs = [0.332 0.367 0.301]   CE = 1.0019</pre></div></div></div>
+<h3 id="runnable-demo-the-magic-simplification">The magic simplification</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Verify the softmax+CE gradient identity: dL/dz = p - y
+logits = np.array([1.0, 2.0, 0.5])
+true   = np.array([0, 1, 0])
+
+# Analytical gradient
+p = softmax(logits)
+grad_analytical = p - true
+
+# Numerical gradient
+def loss_at(z):
+    return cross_entropy(true, softmax(z))
+
+grad_numerical = np.zeros_like(logits)
+eps = 1e-6
+for i in range(len(logits)):
+    zp = logits.copy(); zp[i] += eps
+    zm = logits.copy(); zm[i] -= eps
+    grad_numerical[i] = (loss_at(zp) - loss_at(zm)) / (2 * eps)
+
+print(f&quot;analytical  dL/dz = p - y = {grad_analytical.round(5)}&quot;)
+print(f&quot;numerical   dL/dz         = {grad_numerical.round(5)}&quot;)
+print(f&quot;match: {np.allclose(grad_analytical, grad_numerical, atol=1e-4)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>analytical  dL/dz = p - y = [ 0.23122 -0.37147  0.14024]
+numerical   dL/dz         = [ 0.23122 -0.37147  0.14024]
+match: True</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="index.html"><small>← Back to</small>Training Neural Networks index</a><a class="next" href="06_gradient_descent.html"><small>Next →</small>Gradient Descent</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

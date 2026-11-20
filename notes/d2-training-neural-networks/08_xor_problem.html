@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The XOR Problem · Training Neural Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld2-" data-page="08_xor_problem">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Training Neural Networks</a> · <b>The XOR Problem</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">📉</div><div class="eyebrow">Training · note 08</div><h1>The XOR Problem</h1><div class="lead"><p>The 4-example dataset that killed neural network research for 15 years — and how a hidden layer solves it. This note walks through the classic proof that a linear model cannot solve XOR, builds the smallest MLP that can (2-2-1), and does the forward and backward pass <strong>by hand</strong> so you can watch every number.</p>
+</div></div>
+<section class="sec" id="the-xor-problem-the-classic-non-linear-challenge" data-num="01" data-title="The XOR problem — the classic non-linear challenge">
+<h2><span class="num">01</span> The XOR problem — the classic non-linear challenge</h2>
+<h3 id="the-xor-problem-the-classic-non-linear-challenge-the-definition">The definition</h3>
+<p>XOR maps two binary inputs to a single binary output:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center"><span class="tex">x_1</span></th>
+<th style="text-align:center"><span class="tex">x_2</span></th>
+<th style="text-align:center"><span class="tex">y</span></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">0</td>
+<td style="text-align:center">0</td>
+<td style="text-align:center">0</td>
+</tr>
+<tr>
+<td style="text-align:center">0</td>
+<td style="text-align:center">1</td>
+<td style="text-align:center">1</td>
+</tr>
+<tr>
+<td style="text-align:center">1</td>
+<td style="text-align:center">0</td>
+<td style="text-align:center">1</td>
+</tr>
+<tr>
+<td style="text-align:center">1</td>
+<td style="text-align:center">1</td>
+<td style="text-align:center">0</td>
+</tr>
+</tbody>
+</table></div>
+<p>Output is 1 <strong>if and only if the inputs differ</strong>. Simple as it sounds, this is the smallest interesting classification task that no linear model can solve.</p>
+<h3 id="the-xor-problem-the-classic-non-linear-challenge-the-visualisation">The visualisation</h3>
+<figure class="fig"><img src="images/out/08_xor_problem-01.png" alt="The four XOR examples. The two 1s, (0, 1) and (1, 0), sit on one diagonal; the two 0s, (0, 0) and (1, 1), on the other." loading="lazy"><figcaption>The four XOR examples. The two 1s, (0, 1) and (1, 0), sit on one diagonal; the two 0s, (0, 0) and (1, 1), on the other.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]]); y = np.array([0, 1, 1, 0])
+fig, ax = plt.subplots(figsize=(4.4, 4.2))
+for (a, b), lab in zip(X, y):
+    ax.scatter(a, b, s=420, c=&quot;#dc2626&quot; if lab else &quot;#2563eb&quot;, edgecolors=&quot;k&quot;, zorder=3)
+    ax.text(a, b, str(lab), ha=&quot;center&quot;, va=&quot;center&quot;, color=&quot;white&quot;, fontsize=12, weight=&quot;bold&quot;, zorder=4)
+    ax.text(a + 0.09, b + 0.12, f&quot;({a}, {b})&quot;, fontsize=9)
+ax.plot([0, 1], [1, 0], &quot;:&quot;, color=&quot;#dc2626&quot;); ax.plot([0, 1], [0, 1], &quot;:&quot;, color=&quot;#2563eb&quot;)
+ax.set_xlim(-0.35, 1.45); ax.set_ylim(-0.35, 1.45); ax.set_aspect(&quot;equal&quot;); ax.grid(alpha=0.3)
+ax.set_xlabel(&quot;x₁&quot;); ax.set_ylabel(&quot;x₂&quot;); ax.set_title(&quot;XOR: red = 1, blue = 0&quot;, fontsize=10)
+plt.show()</pre></div></details>
+<p>Plot the four points on 2D axes. Class 1 (red) sits on one diagonal — <code>(0, 1)</code> and <code>(1, 0)</code>. Class 0 (blue) sits on the other — <code>(0, 0)</code> and <code>(1, 1)</code>.</p>
+<p><strong>Key insight:</strong> no single straight line separates the diagonals. That's what &quot;not linearly separable&quot; means, and it is exactly why the perceptron fails. Rosenblatt's 1958 perceptron <em>is</em> a straight line; it hits a wall here.</p>
+<div class="donebar"><button class="donebtn" data-done="the-xor-problem-the-classic-non-linear-challenge">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="why-linear-models-fail-the-contradiction-proof" data-num="02" data-title="Why linear models fail — the contradiction proof">
+<h2><span class="num">02</span> Why linear models fail — the contradiction proof</h2>
+<p><em>Not just &quot;it's hard&quot; — provably impossible for any weights, any bias. A three-line contradiction.</em></p>
+<h3 id="why-linear-models-fail-the-contradiction-proof-setup">Setup</h3>
+<p>A linear model has a decision boundary that is the level set <span class="tex">f(x_1, x_2) = 0</span>:</p>
+<div class="tex-d">f(x_1, x_2) \;=\; w_1 x_1 + w_2 x_2 + b</div>
+<p>Classification: predict 1 iff <span class="tex">f &gt; 0</span>, else 0.</p>
+<h3 id="why-linear-models-fail-the-contradiction-proof-the-four-constraints">The four constraints</h3>
+<p>If the model classifies all four corners correctly:</p>
+<div class="tex-d">f(0, 0) = b \;\leq\; 0 \qquad \text{(1: class 0)}</div>
+<div class="tex-d">f(0, 1) = w_2 + b \;&gt;\; 0 \qquad \text{(2: class 1)}</div>
+<div class="tex-d">f(1, 0) = w_1 + b \;&gt;\; 0 \qquad \text{(3: class 1)}</div>
+<div class="tex-d">f(1, 1) = w_1 + w_2 + b \;\leq\; 0 \qquad \text{(4: class 0)}</div>
+<h3 id="why-linear-models-fail-the-contradiction-proof-the-contradiction">The contradiction</h3>
+<p>Add (2) and (3): <span class="tex">w_1 + w_2 + 2b &gt; 0</span>, so <span class="tex">w_1 + w_2 + b &gt; -b</span>.</p>
+<p>By (1), <span class="tex">b \leq 0</span>, so <span class="tex">-b \geq 0</span>, and therefore <span class="tex">w_1 + w_2 + b &gt; 0</span>.</p>
+<p>That is the opposite of (4). <strong>Contradiction:</strong> no choice of <span class="tex">w_1, w_2, b</span> satisfies all four, so no line separates XOR. (Wrapping <span class="tex">f</span> in a sigmoid changes nothing: <span class="tex">\sigma(f) &gt; 0.5</span> exactly when <span class="tex">f &gt; 0</span>.)</p>
+<p><strong>No linear model can solve XOR.</strong> This is Minsky &amp; Papert's 1969 result in the fewest steps possible.</p>
+<div class="donebar"><button class="donebtn" data-done="why-linear-models-fail-the-contradiction-proof">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-2-2-1-mlp-solution" data-num="03" data-title="The 2-2-1 MLP solution">
+<h2><span class="num">03</span> The 2-2-1 MLP solution</h2>
+<p><em>The escape hatch: one hidden layer with a non-linear activation.</em></p>
+<figure class="fig"><img src="images/out/08_xor_problem-02.png" alt="The 2-2-1 network with the weights used in the hand calculation below. Every unit applies a sigmoid; the numbers on the arrows are weights and b is each unit&#x27;s bias." loading="lazy"><figcaption>The 2-2-1 network with the weights used in the hand calculation below. Every unit applies a sigmoid; the numbers on the arrows are weights and b is each unit's bias.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">from dlviz import draw_network
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(7.5, 3.8))
+draw_network([2, 2, 1], ax=ax, labels=[[&quot;x₁&quot;, &quot;x₂&quot;], [&quot;h₁&quot;, &quot;h₂&quot;], [&quot;ŷ&quot;]],
+             layer_names=[&quot;input&quot;, &quot;hidden (σ)&quot;, &quot;output (σ)&quot;],
+             edge_labels={(0, 0, 0): &quot;w₁₁=1&quot;, (0, 1, 0): &quot;w₂₁=1&quot;, (0, 0, 1): &quot;w₁₂=−1&quot;, (0, 1, 1): &quot;w₂₂=−1&quot;,
+                          (1, 0, 0): &quot;w₃₁=2&quot;, (1, 1, 0): &quot;w₃₂=−1&quot;})
+ax.text(2.2, 0.85, &quot;b₁ = 0&quot;, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#4b5563&quot;)
+ax.text(2.2, -1.25, &quot;b₂ = 1&quot;, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#4b5563&quot;)
+ax.text(4.4, -0.75, &quot;b₃ = −1&quot;, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#4b5563&quot;)
+plt.show()</pre></div></details>
+<h3 id="the-2-2-1-mlp-solution-architecture">Architecture</h3>
+<ul>
+<li><strong>Input layer</strong> — 2 neurons: <span class="tex">x_1</span>, <span class="tex">x_2</span>.</li>
+<li><strong>Hidden layer</strong> — 2 neurons: <span class="tex">h_1</span>, <span class="tex">h_2</span>, each with sigmoid activation <span class="tex">\sigma</span>.</li>
+<li><strong>Output layer</strong> — 1 neuron: <span class="tex">\hat{y}</span>, also with sigmoid.</li>
+</ul>
+<p>Weight matrices:</p>
+<ul>
+<li><span class="tex">W_1 \in \mathbb{R}^{2 \times 2}</span> (input → hidden), with biases <span class="tex">b_1, b_2</span>.</li>
+<li><span class="tex">W_2 \in \mathbb{R}^{1 \times 2}</span> (hidden → output), with bias <span class="tex">b_3</span>.</li>
+</ul>
+<p>Total: <strong>9 trainable parameters</strong> — 6 weights + 3 biases. Below, <span class="tex">w_{ij}</span> is the weight from input <span class="tex">x_i</span> to hidden unit <span class="tex">h_j</span>, and <span class="tex">w_{3j}</span> the weight from <span class="tex">h_j</span> to the output.</p>
+<h3 id="the-2-2-1-mlp-solution-mathematical-formulation-of-forward-pass">Mathematical formulation of forward pass</h3>
+<p><strong>Hidden layer:</strong></p>
+<div class="tex-d">z_1 = w_{11} x_1 + w_{21} x_2 + b_1, \qquad h_1 = \sigma(z_1)</div>
+<div class="tex-d">z_2 = w_{12} x_1 + w_{22} x_2 + b_2, \qquad h_2 = \sigma(z_2)</div>
+<p><strong>Output:</strong></p>
+<div class="tex-d">z_3 = w_{31} h_1 + w_{32} h_2 + b_3, \qquad \hat{y} = \sigma(z_3)</div>
+<p><strong>Sigmoid</strong> and <strong>Binary Cross-Entropy loss:</strong></p>
+<div class="tex-d">\sigma(z) = \frac{1}{1 + e^{-z}}, \qquad L = -\bigl[\, y \log \hat{y} + (1 - y) \log(1 - \hat{y}) \,\bigr]</div>
+<p>Full activation-function coverage lives in <a href="../d1-neural-network-foundations/04_activation_functions.html">note 04</a>. The BCE loss is derived in <a href="05_loss_functions.html">note 05</a>.</p>
+<h3 id="the-2-2-1-mlp-solution-why-this-works-intuitive-explanation">Why this works — intuitive explanation</h3>
+<p>The two hidden neurons learn to detect <strong>simpler features</strong> that XOR can be composed from:</p>
+<ul>
+<li>One neuron can learn <em>OR</em> (fires when either input is 1).</li>
+<li>The other can learn <em>NAND</em> (fires when it's NOT the case that both inputs are 1).</li>
+</ul>
+<p>Then XOR = OR AND NAND. The output neuron combines them linearly — and in the <em>hidden-layer feature space</em> the four data points become linearly separable. The last section shows the transformation.</p>
+<div class="donebar"><button class="donebtn" data-done="the-2-2-1-mlp-solution">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="forward-pass-hand-worked-five-steps" data-num="04" data-title="Forward pass — hand-worked, five steps">
+<h2><span class="num">04</span> Forward pass — hand-worked, five steps</h2>
+<p><em>One full forward pass with specific weights. Every intermediate number.</em></p>
+<h3 id="forward-pass-hand-worked-five-steps-setup-pick-specific-weights">Setup — pick specific weights</h3>
+<p>Take the input <span class="tex">\mathbf{x} = [1, 0]^T</span> with target <span class="tex">y = 1</span> (the second row of the XOR truth table).</p>
+<p>Weights, chosen for arithmetic simplicity:</p>
+<div class="tex-d">W_1 = \begin{pmatrix} w_{11} &amp; w_{12} \\ w_{21} &amp; w_{22} \end{pmatrix} = \begin{pmatrix} 1 &amp; -1 \\ 1 &amp; -1 \end{pmatrix}, \qquad \begin{pmatrix} b_1 \\ b_2 \end{pmatrix} = \begin{pmatrix} 0 \\ 1 \end{pmatrix}</div>
+<div class="tex-d">\begin{pmatrix} w_{31} &amp; w_{32} \end{pmatrix} = \begin{pmatrix} 2 &amp; -1 \end{pmatrix}, \qquad b_3 = -1</div>
+<h3 id="forward-pass-hand-worked-five-steps-step-1-hidden-layer-pre-activations">Step 1 — hidden-layer pre-activations</h3>
+<div class="tex-d">z_1 = (1.0)(1) + (1.0)(0) + 0.0 = 1.0</div>
+<div class="tex-d">z_2 = (-1.0)(1) + (-1.0)(0) + 1.0 = 0.0</div>
+<h3 id="forward-pass-hand-worked-five-steps-step-2-apply-sigmoid">Step 2 — apply sigmoid</h3>
+<div class="tex-d">h_1 = \sigma(1.0) = \frac{1}{1 + e^{-1}} \approx 0.731</div>
+<div class="tex-d">h_2 = \sigma(0.0) = \frac{1}{1 + e^{0}} = 0.500</div>
+<h3 id="forward-pass-hand-worked-five-steps-steps-3-4-output-layer">Steps 3 &amp; 4 — output layer</h3>
+<div class="tex-d">z_3 = (2.0)(0.731) + (-1.0)(0.500) + (-1.0) = 1.462 - 0.500 - 1.000 = -0.038</div>
+<div class="tex-d">\hat{y} = \sigma(-0.038) \approx 0.491</div>
+<p>The model predicts 0.491 where the answer is 1: just on the wrong side of 0.5, and not confident either way. The loss will pull it up.</p>
+<h3 id="forward-pass-hand-worked-five-steps-step-5-the-loss">Step 5 — the loss</h3>
+<div class="tex-d">L = -\bigl[(1)(\log 0.491) + (0)(\log 0.509)\bigr] = -\log 0.491 \approx 0.712</div>
+<p>Not great — a perfect model would have <span class="tex">L \to 0</span>. This tells backprop how far off we are.</p>
+<div class="donebar"><button class="donebtn" data-done="forward-pass-hand-worked-five-steps">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="backpropagation-the-derivation" data-num="05" data-title="Backpropagation — the derivation">
+<h2><span class="num">05</span> Backpropagation — the derivation</h2>
+<p><em>Compute the gradient of the loss with respect to every weight. Chain rule, layer by layer, starting at the output.</em></p>
+<h3 id="backpropagation-the-derivation-the-goal">The goal</h3>
+<p>We need <span class="tex">\partial L / \partial w</span> for every weight. Then gradient descent updates them:</p>
+<div class="tex-d">w_{\text{new}} = w_{\text{old}} - \alpha \frac{\partial L}{\partial w_{\text{old}}}</div>
+<p>Full backprop treatment is in <a href="07_backpropagation.html">note 07</a> — this note shows the mechanics on the specific 2-2-1 network.</p>
+<p><strong>Two useful derivatives we'll need:</strong></p>
+<ul>
+<li>Sigmoid: <span class="tex">\sigma&#x27;(z) = \sigma(z) \, (1 - \sigma(z))</span></li>
+<li>BCE w.r.t. <span class="tex">\hat{y}</span>: <span class="tex">\dfrac{\partial L}{\partial \hat{y}} = \dfrac{\hat{y} - y}{\hat{y}(1 - \hat{y})}</span></li>
+</ul>
+<h3 id="backpropagation-the-derivation-output-pre-activation-the-magic-simplification">Output pre-activation — the magic simplification</h3>
+<div class="tex-d">\frac{\partial L}{\partial z_3} = \frac{\partial L}{\partial \hat{y}} \cdot \frac{\partial \hat{y}}{\partial z_3} = \underbrace{\frac{\hat{y} - y}{\hat{y}(1 - \hat{y})}}_{\text{BCE}} \cdot \underbrace{\hat{y}(1 - \hat{y})}_{\sigma&#x27;(z_3)} = \hat{y} - y</div>
+<p>The two ugly factors cancel. Call this <strong>the output error term</strong>:</p>
+<div class="tex-d">\delta_3 = \hat{y} - y</div>
+<p>This is the same identity you meet everywhere sigmoid + BCE (or softmax + cross-entropy) is used — one of the most-invoked results in deep learning.</p>
+<h3 id="backpropagation-the-derivation-output-layer-weight-gradients">Output-layer weight gradients</h3>
+<div class="tex-d">\frac{\partial L}{\partial w_{31}} = \delta_3 \cdot h_1, \qquad \frac{\partial L}{\partial w_{32}} = \delta_3 \cdot h_2, \qquad \frac{\partial L}{\partial b_3} = \delta_3</div>
+<h3 id="backpropagation-the-derivation-propagate-error-back-to-the-hidden-layer">Propagate error back to the hidden layer</h3>
+<div class="tex-d">\delta_1 = \frac{\partial L}{\partial z_1} = \delta_3 \cdot w_{31} \cdot \sigma&#x27;(z_1)</div>
+<div class="tex-d">\delta_2 = \frac{\partial L}{\partial z_2} = \delta_3 \cdot w_{32} \cdot \sigma&#x27;(z_2)</div>
+<p>The error signal from the output layer flows backwards, weighted by the connection strengths and shaped by each hidden neuron's local slope.</p>
+<h3 id="backpropagation-the-derivation-hidden-layer-weight-gradients">Hidden-layer weight gradients</h3>
+<div class="tex-d">\frac{\partial L}{\partial w_{11}} = \delta_1 \cdot x_1, \qquad \frac{\partial L}{\partial w_{21}} = \delta_1 \cdot x_2, \qquad \frac{\partial L}{\partial b_1} = \delta_1</div>
+<p>Same pattern for the <span class="tex">h_2</span>-side weights: <span class="tex">\partial L / \partial w_{12} = \delta_2 \cdot x_1</span>, etc.</p>
+<p><strong>The pattern (which generalises to any MLP):</strong></p>
+<blockquote>
+<p>∂L / ∂weight = (error at receiving neuron) × (activation of sending neuron).</p>
+</blockquote>
+<div class="donebar"><button class="donebtn" data-done="backpropagation-the-derivation">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="backward-pass-hand-worked-one-input" data-num="06" data-title="Backward pass — hand-worked, one input">
+<h2><span class="num">06</span> Backward pass — hand-worked, one input</h2>
+<p><em>Plug the numbers from the forward pass into the derivation. Every gradient with specific values.</em></p>
+<h3 id="backward-pass-hand-worked-one-input-step-1-output-layer-gradients">Step 1 — output-layer gradients</h3>
+<p>From the forward pass: <span class="tex">\hat{y} = 0.491</span>, <span class="tex">h_1 = 0.731</span>, <span class="tex">h_2 = 0.500</span>, <span class="tex">y = 1</span>.</p>
+<div class="tex-d">\delta_3 = \hat{y} - y = 0.491 - 1 = -0.509</div>
+<div class="tex-d">\frac{\partial L}{\partial w_{31}} = \delta_3 \cdot h_1 = (-0.509)(0.731) = -0.372</div>
+<div class="tex-d">\frac{\partial L}{\partial w_{32}} = \delta_3 \cdot h_2 = (-0.509)(0.500) = -0.255</div>
+<div class="tex-d">\frac{\partial L}{\partial b_3} = \delta_3 = -0.509</div>
+<h3 id="backward-pass-hand-worked-one-input-step-2-hidden-layer-error-terms">Step 2 — hidden-layer error terms</h3>
+<div class="tex-d">\delta_1 = \delta_3 \cdot w_{31} \cdot h_1(1 - h_1) = (-0.509)(2.0)(0.731 \cdot 0.269) \approx -0.200</div>
+<div class="tex-d">\delta_2 = \delta_3 \cdot w_{32} \cdot h_2(1 - h_2) = (-0.509)(-1.0)(0.5 \cdot 0.5) \approx 0.127</div>
+<p>Note the signs: <span class="tex">\delta_1 &lt; 0</span> means we want to increase <span class="tex">z_1</span>; <span class="tex">\delta_2 &gt; 0</span> means we want to decrease <span class="tex">z_2</span>.</p>
+<h3 id="backward-pass-hand-worked-one-input-step-3-hidden-layer-weight-and-bias-gradients">Step 3 — hidden-layer weight and bias gradients</h3>
+<p>With <span class="tex">x_1 = 1</span> and <span class="tex">x_2 = 0</span>:</p>
+<div class="tex-d">\frac{\partial L}{\partial w_{11}} = \delta_1 \cdot x_1 = -0.200 \cdot 1 = -0.200</div>
+<div class="tex-d">\frac{\partial L}{\partial w_{12}} = \delta_2 \cdot x_1 = 0.127 \cdot 1 = 0.127</div>
+<div class="tex-d">\frac{\partial L}{\partial w_{21}} = \delta_1 \cdot x_2 = -0.200 \cdot 0 = 0 \qquad \text{(!)}</div>
+<div class="tex-d">\frac{\partial L}{\partial w_{22}} = \delta_2 \cdot x_2 = 0.127 \cdot 0 = 0 \qquad \text{(!)}</div>
+<div class="tex-d">\frac{\partial L}{\partial b_1} = \delta_1 = -0.200, \qquad \frac{\partial L}{\partial b_2} = \delta_2 = 0.127</div>
+<p><strong>Notice</strong>: because <span class="tex">x_2 = 0</span>, the gradients for <span class="tex">w_{21}</span> and <span class="tex">w_{22}</span> are exactly zero. Weights only get updated when the input they connect from actually fires — an intuition worth remembering.</p>
+<div class="donebar"><button class="donebtn" data-done="backward-pass-hand-worked-one-input">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="weight-update" data-num="07" data-title="Weight update">
+<h2><span class="num">07</span> Weight update</h2>
+<h3 id="weight-update-the-update-rule">The update rule</h3>
+<div class="tex-d">w_{\text{new}} = w_{\text{old}} - \alpha \, \frac{\partial L}{\partial w_{\text{old}}}</div>
+<p>With <span class="tex">\alpha = 0.1</span>:</p>
+<p><strong>Output layer:</strong></p>
+<ul>
+<li><span class="tex">w_{31} \;=\; 2.0 - 0.1 \cdot (-0.372) \;=\; \mathbf{2.0372}</span></li>
+<li><span class="tex">w_{32} \;=\; -1.0 - 0.1 \cdot (-0.255) \;=\; \mathbf{-0.9745}</span></li>
+<li><span class="tex">b_3 \;=\; -1.0 - 0.1 \cdot (-0.509) \;=\; \mathbf{-0.9491}</span></li>
+</ul>
+<p><strong>Hidden layer:</strong></p>
+<ul>
+<li><span class="tex">w_{11} \;=\; 1.0 - 0.1 \cdot (-0.200) \;=\; \mathbf{1.020}</span></li>
+<li><span class="tex">w_{12} \;=\; -1.0 - 0.1 \cdot (0.127) \;=\; \mathbf{-1.0127}</span></li>
+<li><span class="tex">b_1 \;=\; 0.0 - 0.1 \cdot (-0.200) \;=\; \mathbf{0.020}</span></li>
+<li><span class="tex">b_2 \;=\; 1.0 - 0.1 \cdot (0.127) \;=\; \mathbf{0.9873}</span></li>
+</ul>
+<p>The weights <span class="tex">w_{21}</span> and <span class="tex">w_{22}</span> <strong>remain unchanged</strong> because their gradients were zero (since <span class="tex">x_2 = 0</span>).</p>
+<p>That was <strong>one step, on one training example</strong>. The demo at the end loops this until the whole XOR truth table is correct.</p>
+<h3 id="weight-update-check-every-number-with-autograd">Check every number with autograd</h3>
+<p>The same network, input and weights in PyTorch. <code>backward()</code> produces every gradient above at once; change a weight or the input and run it again to get a new hand calculation for free.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+
+x = torch.tensor([1.0, 0.0]); y = torch.tensor(1.0)
+W1 = torch.tensor([[1.0, -1.0],          # row i = input xᵢ, column j = hidden unit hⱼ  (entry w_ij)
+                   [1.0, -1.0]], requires_grad=True)
+b1 = torch.tensor([0.0, 1.0], requires_grad=True)
+W2 = torch.tensor([2.0, -1.0], requires_grad=True)
+b3 = torch.tensor(-1.0, requires_grad=True)
+
+h = torch.sigmoid(x @ W1 + b1)            # (h1, h2)
+y_hat = torch.sigmoid(h @ W2 + b3)
+L = -(y * torch.log(y_hat) + (1 - y) * torch.log(1 - y_hat))
+L.backward()
+
+print(f&quot;h = {h.detach().numpy().round(3)}   y_hat = {y_hat.item():.3f}   L = {L.item():.3f}&quot;)
+print(&quot;dL/dW1 =\n&quot;, W1.grad.numpy().round(3))
+print(&quot;dL/db1 =&quot;, b1.grad.numpy().round(3), &quot;  dL/dW2 =&quot;, W2.grad.numpy().round(3), &quot;  dL/db3 =&quot;, round(b3.grad.item(), 3))
+with torch.no_grad():                     # one gradient-descent step, α = 0.1
+    for p in (W1, b1, W2, b3):
+        p -= 0.1 * p.grad
+print(&quot;after one step: W1 =&quot;, W1.detach().numpy().round(4).tolist(), &quot; W2 =&quot;, W2.detach().numpy().round(4).tolist())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>h = [0.731 0.5  ]   y_hat = 0.491   L = 0.712
+dL/dW1 =
+ [[-0.2    0.127]
+ [-0.     0.   ]]
+dL/db1 = [-0.2    0.127]   dL/dW2 = [-0.372 -0.255]   dL/db3 = -0.509
+after one step: W1 = [[1.0199999809265137, -1.0126999616622925], [1.0, -1.0]]  W2 = [2.0371999740600586, -0.9745000004768372]</pre></div></div></div>
+<p>Full gradient descent treatment lives in <a href="06_gradient_descent.html">note 06</a>.</p>
+<div class="donebar"><button class="donebtn" data-done="weight-update">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="feature-transformation-why-non-linearity-works" data-num="08" data-title="Feature transformation — why non-linearity works">
+<h2><span class="num">08</span> Feature transformation — why non-linearity works</h2>
+<figure class="fig"><img src="images/out/08_xor_problem-03.png" alt="Left: the input space, where no line separates the classes. Right: the same four points after a hidden layer computing h₁ ≈ OR and h₂ ≈ NAND (steep sigmoids). (0, 1) and (1, 0) both land at (1, 1), and the line h₁ + h₂ = 1.5 now separates the classes." loading="lazy"><figcaption>Left: the input space, where no line separates the classes. Right: the same four points after a hidden layer computing h₁ ≈ OR and h₂ ≈ NAND (steep sigmoids). (0, 1) and (1, 0) both land at (1, 1), and the line h₁ + h₂ = 1.5 now separates the classes.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+sig = lambda z: 1 / (1 + np.exp(-z))
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=float); y = np.array([0, 1, 1, 0])
+H = np.c_[sig(20 * X[:, 0] + 20 * X[:, 1] - 10), sig(-20 * X[:, 0] - 20 * X[:, 1] + 30)]   # OR, NAND
+col = [&quot;#dc2626&quot; if k else &quot;#2563eb&quot; for k in y]
+fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
+axes[0].scatter(X[:, 0], X[:, 1], c=col, s=250, edgecolors=&quot;k&quot;, zorder=3); axes[0].set_title(&quot;input space (x₁, x₂)&quot;, fontsize=10)
+axes[0].set_xlabel(&quot;x₁&quot;); axes[0].set_ylabel(&quot;x₂&quot;)
+axes[1].scatter(H[:, 0], H[:, 1], c=col, s=250, edgecolors=&quot;k&quot;, zorder=3)
+for (h1, h2), xx in zip(H, X.astype(int)):
+    axes[1].annotate(str(tuple(int(v) for v in xx)), (h1, h2), (h1 + 0.06, h2 - 0.12), fontsize=8.5)
+xs = np.linspace(-0.3, 1.3, 2); axes[1].plot(xs, 1.5 - xs, &quot;k--&quot;, label=&quot;h₁ + h₂ = 1.5&quot;)
+axes[1].set_title(&quot;hidden space (h₁, h₂)&quot;, fontsize=10); axes[1].set_xlabel(&quot;h₁ ≈ OR&quot;); axes[1].set_ylabel(&quot;h₂ ≈ NAND&quot;)
+axes[1].legend(fontsize=8.5, loc=&quot;lower left&quot;)
+for a in axes:
+    a.set_xlim(-0.3, 1.3); a.set_ylim(-0.3, 1.3); a.set_aspect(&quot;equal&quot;); a.grid(alpha=0.3)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="feature-transformation-why-non-linearity-works-the-key-idea">The key idea</h3>
+<p>The hidden layer is not just &quot;adding parameters&quot; — it is <strong>transforming the input space</strong> into a new one where the problem is easier.</p>
+<ul>
+<li>In the <strong>original input space</strong> <span class="tex">(x_1, x_2)</span>, the four XOR points aren't linearly separable.</li>
+<li>In the <strong>hidden-layer feature space</strong> <span class="tex">(h_1, h_2)</span>, once the network has learned good weights, the four points <em>are</em> linearly separable.</li>
+</ul>
+<p>The output neuron then draws a simple straight line in the new space.</p>
+<h3 id="feature-transformation-why-non-linearity-works-what-the-hidden-neurons-learn">What the hidden neurons learn</h3>
+<p>Trained hidden neurons usually end up close to simple logical pieces, for example:</p>
+<ul>
+<li>one approximates <strong>OR</strong> (fires when either input is 1),</li>
+<li>the other approximates <strong>NAND</strong> (fires unless both inputs are 1),</li>
+</ul>
+<p>and then <span class="tex">\text{XOR} = \text{OR} \;\wedge\; \text{NAND}</span>. A run may find an equivalent pair instead (OR and AND, with a negative output weight on AND); the demo below prints what yours learned.</p>
+<p>Nobody told the network to learn OR and NAND. Gradient descent finds simpler functions that XOR can be built from. This is the essence of <strong>representation learning</strong>, and the reason depth is useful: each layer learns pieces the next layer can combine.</p>
+<p>Full treatment of feature learning and the Universal Approximation Theorem lives in <a href="../d1-neural-network-foundations/03_mlp_and_feedforward.html">note 03</a>.</p>
+<div class="donebar"><button class="donebtn" data-done="feature-transformation-why-non-linearity-works">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-train-the-whole-network" data-num="09" data-title="Runnable demo — train the whole network">
+<h2><span class="num">09</span> Runnable demo — train the whole network</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+# XOR training data — all four rows
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+y = np.array([[0], [1], [1], [0]], dtype=np.float32)
+
+def sigmoid(z): return 1 / (1 + np.exp(-z))
+
+class XORNet:
+    &#x27;&#x27;&#x27;A 2-2-1 MLP trained by hand (no autograd).&#x27;&#x27;&#x27;
+    def __init__(self, seed=0):
+        rng = np.random.default_rng(seed)
+        self.W1 = rng.normal(0, 1, (2, 2)).astype(np.float32)   # (hidden, input)
+        self.b1 = np.zeros((2, 1), dtype=np.float32)
+        self.W2 = rng.normal(0, 1, (1, 2)).astype(np.float32)   # (out, hidden)
+        self.b2 = np.zeros((1, 1), dtype=np.float32)
+
+    def forward(self, X_col):
+        self.Z1 = self.W1 @ X_col + self.b1
+        self.H  = sigmoid(self.Z1)
+        self.Z2 = self.W2 @ self.H + self.b2
+        self.Y  = sigmoid(self.Z2)
+        return self.Y
+
+    def bce(self, y_col):
+        eps = 1e-12
+        yh = np.clip(self.Y, eps, 1 - eps)
+        return -np.mean(y_col * np.log(yh) + (1 - y_col) * np.log(1 - yh))
+
+    def backward(self, X_col, y_col, lr=0.5):
+        n = X_col.shape[1]
+
+        # Output layer — the magic simplification
+        dZ2 = (self.Y - y_col) / n              # (1, n)
+        dW2 = dZ2 @ self.H.T                    # (1, 2)
+        db2 = dZ2.sum(axis=1, keepdims=True)    # (1, 1)
+
+        # Hidden layer
+        dH  = self.W2.T @ dZ2                   # (2, n)
+        dZ1 = dH * self.H * (1 - self.H)        # sigmoid&#x27;
+        dW1 = dZ1 @ X_col.T                     # (2, 2)
+        db1 = dZ1.sum(axis=1, keepdims=True)    # (2, 1)
+
+        # Gradient descent step
+        self.W2 -= lr * dW2; self.b2 -= lr * db2
+        self.W1 -= lr * dW1; self.b1 -= lr * db1
+
+X_col = X.T; y_col = y.T
+net = XORNet(seed=0)
+
+losses = []
+for epoch in range(10_000):
+    net.forward(X_col)
+    losses.append(net.bce(y_col))
+    net.backward(X_col, y_col, lr=0.5)
+
+preds = (net.forward(X_col) &gt; 0.5).astype(int).flatten()
+print(f&quot;final predictions: {preds.tolist()}&quot;)
+print(f&quot;true labels:       {y.flatten().astype(int).tolist()}&quot;)
+print(f&quot;final loss:        {losses[-1]:.6f}&quot;)
+print(f&quot;XOR solved:        {np.array_equal(preds, y.flatten().astype(int))}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>final predictions: [0, 1, 1, 0]
+true labels:       [0, 1, 1, 0]
+final loss:        0.002139
+XOR solved:        True</pre></div></div></div>
+<h3 id="runnable-demo-train-the-whole-network-loss-curve-and-decision-boundary">Loss curve and decision boundary</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+# Loss over epochs
+axes[0].plot(losses)
+axes[0].set_yscale(&#x27;log&#x27;)
+axes[0].set_xlabel(&#x27;epoch&#x27;); axes[0].set_ylabel(&#x27;BCE loss (log)&#x27;)
+axes[0].set_title(&#x27;training loss&#x27;); axes[0].grid(alpha=0.3)
+
+# Decision boundary
+xx, yy = np.meshgrid(np.linspace(-0.3, 1.3, 200), np.linspace(-0.3, 1.3, 200))
+grid = np.c_[xx.ravel(), yy.ravel()].T
+Z1 = net.W1 @ grid + net.b1
+H  = sigmoid(Z1)
+Z2 = net.W2 @ H + net.b2
+Y  = sigmoid(Z2).reshape(xx.shape)
+axes[1].contourf(xx, yy, Y, levels=20, cmap=&#x27;coolwarm&#x27;, alpha=0.75)
+
+for xi, yi in zip(X, y.flatten()):
+    axes[1].scatter(*xi, c=&#x27;red&#x27; if yi == 1 else &#x27;blue&#x27;, s=250, edgecolors=&#x27;k&#x27;, zorder=5)
+
+axes[1].set_title(&#x27;2-2-1 MLP — XOR solved&#x27;)
+axes[1].set_xlabel(&#x27;x1&#x27;); axes[1].set_ylabel(&#x27;x2&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/08_xor_problem-04.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-train-the-whole-network-what-the-hidden-layer-learned-feature-space-view">What the hidden layer learned — feature-space view</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># For each of the 4 XOR inputs, get the hidden activation (h1, h2)
+Z1 = net.W1 @ X_col + net.b1
+H  = sigmoid(Z1).T          # shape (4, 2) — one row per XOR input
+
+# Plot: left = original input space, right = hidden-layer feature space
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+for xi, yi in zip(X, y.flatten()):
+    axes[0].scatter(*xi, c=&#x27;red&#x27; if yi == 1 else &#x27;blue&#x27;, s=250, edgecolors=&#x27;k&#x27;)
+for hi, yi in zip(H, y.flatten()):
+    axes[1].scatter(*hi, c=&#x27;red&#x27; if yi == 1 else &#x27;blue&#x27;, s=250, edgecolors=&#x27;k&#x27;)
+
+axes[0].set_title(&#x27;input space (x1, x2) — NOT linearly separable&#x27;)
+axes[0].set_xlabel(&#x27;x1&#x27;); axes[0].set_ylabel(&#x27;x2&#x27;)
+axes[0].set_xlim(-0.3, 1.3); axes[0].set_ylim(-0.3, 1.3); axes[0].grid(alpha=0.3)
+
+axes[1].set_title(&#x27;hidden feature space (h1, h2) — linearly separable&#x27;)
+axes[1].set_xlabel(&#x27;h1&#x27;); axes[1].set_ylabel(&#x27;h2&#x27;)
+axes[1].grid(alpha=0.3)
+plt.tight_layout(); plt.show()
+
+print(&quot;\nHidden-layer activations for each XOR input:&quot;)
+for xi, hi, yi in zip(X, H, y.flatten()):
+    print(f&quot;  input {xi.astype(int).tolist()} -&gt; h = ({hi[0]:.3f}, {hi[1]:.3f})   label = {int(yi)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/08_xor_problem-05.png" alt="plot" loading="lazy"></div><div class="orow"><pre>
+Hidden-layer activations for each XOR input:
+  input [0, 0] -&gt; h = (0.000, 0.030)   label = 0
+  input [0, 1] -&gt; h = (0.045, 0.983)   label = 1
+  input [1, 0] -&gt; h = (0.045, 0.984)   label = 1
+  input [1, 1] -&gt; h = (0.938, 1.000)   label = 0</pre></div></div></div>
+<h3 id="runnable-demo-train-the-whole-network-what-just-happened">What just happened</h3>
+<ul>
+<li><strong>Loss curve</strong> — smooth exponential decay to near-zero. The network is learning.</li>
+<li><strong>Decision boundary</strong> — a curved region that puts the two diagonals on different sides.</li>
+<li><strong>Hidden-space plot</strong> — the four XOR points, no longer scrambled in the diagonals, are now separable by a straight line in <span class="tex">(h_1, h_2)</span> space. That is the whole trick.</li>
+</ul>
+<p>You just watched what took the field from 1958 to 1986 to figure out.</p>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-train-the-whole-network">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="07_backpropagation.html"><small>← Previous</small>Backpropagation</a><a class="next" href="09_regularisation.html"><small>Next →</small>Regularisation &amp; Training Dynamics</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

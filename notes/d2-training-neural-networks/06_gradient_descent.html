@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gradient Descent · Training Neural Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld2-" data-page="06_gradient_descent">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Training Neural Networks</a> · <b>Gradient Descent</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">📉</div><div class="eyebrow">Training · note 06</div><h1>Gradient Descent</h1><div class="lead"><p>The optimiser. This is how a neural network actually learns — by rolling downhill on the loss landscape, one small step at a time. Derivatives → gradients → the update rule → learning rate → SGD, momentum, Adam → why local minima are less scary than they sound.</p>
+</div></div>
+<section class="sec" id="the-optimisation-view-of-learning" data-num="01" data-title="The optimisation view of learning">
+<h2><span class="num">01</span> The optimisation view of learning</h2>
+<h3 id="the-optimisation-view-of-learning-the-reframe">The reframe</h3>
+<p>Every learning problem in this course becomes an <strong>optimisation problem</strong>:</p>
+<div class="tex-d">\theta^* \;=\; \arg\min_{\theta} \; L(\theta)</div>
+<ul>
+<li><span class="tex">L(\theta)</span> is the loss function, averaged over the training set.</li>
+<li><span class="tex">\theta</span> is every trainable parameter — every weight and bias in every layer.</li>
+<li>We want the <span class="tex">\theta</span> that makes <span class="tex">L</span> smallest.</li>
+</ul>
+<p>For anything but toy models, we can't solve this in closed form. So we search — moving <span class="tex">\theta</span> downhill, step by step. That search algorithm is <strong>gradient descent</strong>.</p>
+<div class="donebar"><button class="donebtn" data-done="the-optimisation-view-of-learning">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="prerequisite-derivatives-and-gradients" data-num="02" data-title="Prerequisite — derivatives and gradients">
+<h2><span class="num">02</span> Prerequisite — derivatives and gradients</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-01.png" alt="The derivative is the slope of the tangent line. At x = −1 the curve is falling (f′ &lt; 0), at x = 0.5 it is flat (f′ = 0), at x = 1.6 it is rising (f′ &gt; 0). Gradient descent only ever needs this sign and size." loading="lazy"><figcaption>The derivative is the slope of the tangent line. At x = −1 the curve is falling (f′ &lt; 0), at x = 0.5 it is flat (f′ = 0), at x = 1.6 it is rising (f′ &gt; 0). Gradient descent only ever needs this sign and size.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+f = lambda x: x ** 3 - 0.75 * x + 0.5 + 0.0 * x
+df = lambda x: 3 * x ** 2 - 0.75
+x = np.linspace(-1.6, 1.9, 300)
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.plot(x, f(x), color=&quot;#111827&quot;, lw=2.2, label=&quot;f(x) = x³ − 0.75x + 0.5&quot;)
+for x0, c in [(-1.0, &quot;#dc2626&quot;), (0.5, &quot;#6b7280&quot;), (1.6, &quot;#059669&quot;)]:
+    xs = np.linspace(x0 - 0.45, x0 + 0.45, 2)
+    ax.plot(xs, f(x0) + df(x0) * (xs - x0), color=c, lw=2)
+    ax.scatter([x0], [f(x0)], color=c, zorder=3)
+    ax.annotate(f&quot;f′({x0}) = {df(x0):+.2f}&quot;, (x0, f(x0)), (x0 - 0.2, f(x0) + 0.9), color=c, fontsize=9)
+ax.set_ylim(-1.2, 5); ax.grid(alpha=0.3); ax.legend(fontsize=9, loc=&quot;upper left&quot;); ax.set_xlabel(&quot;x&quot;)
+plt.show()</pre></div></details>
+<h3 id="prerequisite-derivatives-and-gradients-derivative-in-one-variable">Derivative in one variable</h3>
+<p>For a scalar function <span class="tex">f: \mathbb{R} \to \mathbb{R}</span>:</p>
+<div class="tex-d">f&#x27;(x) \;=\; \lim_{h \to 0} \frac{f(x + h) - f(x)}{h}</div>
+<p><strong>Interpretation</strong> — the slope of the tangent line at <span class="tex">x</span>. Positive slope → function is going up; negative → going down; zero → flat spot.</p>
+<h3 id="prerequisite-derivatives-and-gradients-gradient-in-many-variables">Gradient in many variables</h3>
+<figure class="fig"><img src="images/out/06_gradient_descent-02.png" alt="Contours of f(x, y) = x² + 3y². At each point the gradient (black) is at right angles to the contour and points uphill; minus the gradient (red) is the steepest way down, and that is the direction gradient descent steps in." loading="lazy"><figcaption>Contours of f(x, y) = x² + 3y². At each point the gradient (black) is at right angles to the contour and points uphill; minus the gradient (red) is the steepest way down, and that is the direction gradient descent steps in.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+f = lambda x, y: x ** 2 + 3 * y ** 2
+grad = lambda x, y: np.array([2 * x, 6 * y])
+X, Y = np.meshgrid(np.linspace(-3, 3, 200), np.linspace(-2, 2, 200))
+fig, ax = plt.subplots(figsize=(7, 4.6))
+cs = ax.contour(X, Y, f(X, Y), levels=[0.5, 1.5, 3, 5, 8, 12], cmap=&quot;Blues&quot;)
+ax.clabel(cs, fontsize=7)
+for (x0, y0) in [(2.2, 0.6), (-1.5, 1.0), (0.8, -1.2), (-2.4, -0.4)]:
+    g = grad(x0, y0) / np.linalg.norm(grad(x0, y0)) * 0.7
+    ax.annotate(&quot;&quot;, (x0 + g[0], y0 + g[1]), (x0, y0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, lw=1.8, color=&quot;#111827&quot;))
+    ax.annotate(&quot;&quot;, (x0 - g[0], y0 - g[1]), (x0, y0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, lw=1.8, color=&quot;#dc2626&quot;))
+    ax.scatter([x0], [y0], color=&quot;k&quot;, s=15, zorder=3)
+ax.scatter([0], [0], marker=&quot;*&quot;, s=180, color=&quot;#059669&quot;, zorder=3, label=&quot;minimum&quot;)
+ax.plot([], [], color=&quot;#111827&quot;, label=&quot;∇f: uphill&quot;); ax.plot([], [], color=&quot;#dc2626&quot;, label=&quot;−∇f: downhill&quot;)
+ax.set_aspect(&quot;equal&quot;); ax.legend(fontsize=8.5, loc=&quot;upper right&quot;); ax.set_xlabel(&quot;x&quot;); ax.set_ylabel(&quot;y&quot;)
+plt.show()</pre></div></details>
+<p>For a function <span class="tex">f: \mathbb{R}^n \to \mathbb{R}</span>, the <strong>gradient</strong> is the vector of partial derivatives:</p>
+<div class="tex-d">\nabla f(\mathbf{x}) \;=\; \left( \frac{\partial f}{\partial x_1}, \; \frac{\partial f}{\partial x_2}, \; \ldots, \; \frac{\partial f}{\partial x_n} \right)</div>
+<p><strong>Two key facts:</strong></p>
+<ul>
+<li><span class="tex">\nabla f(\mathbf{x})</span> points in the direction of <strong>steepest ascent</strong>.</li>
+<li><span class="tex">-\nabla f(\mathbf{x})</span> points in the direction of <strong>steepest descent</strong> — which is what we want to minimise.</li>
+</ul>
+<h3 id="prerequisite-derivatives-and-gradients-the-intuition-picture">The intuition picture</h3>
+<p>Stand on a mountain in fog. Feel the slope with your feet. Take a small step in the steepest-downhill direction. Repeat until flat. That's gradient descent.</p>
+<div class="donebar"><button class="donebtn" data-done="prerequisite-derivatives-and-gradients">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-single-variable-update-rule" data-num="03" data-title="The single-variable update rule">
+<h2><span class="num">03</span> The single-variable update rule</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-03.png" alt="Gradient descent on a bumpy one-dimensional loss. Started at w = −0.4 it rolls into the global minimum; started at w = 3.4 it settles in a local minimum, where the slope is zero too. Where you start matters on a non-convex loss." loading="lazy"><figcaption>Gradient descent on a bumpy one-dimensional loss. Started at w = −0.4 it rolls into the global minimum; started at w = 3.4 it settles in a local minimum, where the slope is zero too. Where you start matters on a non-convex loss.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+L = lambda w: 0.05 * w ** 4 - 0.6 * w ** 2 + 0.35 * w + 2
+dL = lambda w: 0.2 * w ** 3 - 1.2 * w + 0.35
+w = np.linspace(-3.6, 3.6, 400)
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.plot(w, L(w), color=&quot;#111827&quot;, lw=2)
+for w0, c in [(-0.4, &quot;#059669&quot;), (3.4, &quot;#dc2626&quot;)]:
+    path = [w0]
+    for _ in range(25):
+        path.append(path[-1] - 0.25 * dL(path[-1]))
+    path = np.array(path)
+    ax.plot(path, L(path), &quot;o-&quot;, color=c, ms=4, lw=1, label=f&quot;start w = {w0}: ends at w = {path[-1]:.2f}, loss {L(path[-1]):.2f}&quot;)
+ax.annotate(&quot;global minimum&quot;, (-2.58, L(-2.58)), (-3.4, 1.6), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;), fontsize=9)
+ax.annotate(&quot;local minimum&quot;, (2.29, L(2.29)), (2.2, 2.6), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;), fontsize=9)
+ax.set_xlabel(&quot;parameter w&quot;); ax.set_ylabel(&quot;loss L(w)&quot;); ax.legend(fontsize=8.5, loc=&quot;upper center&quot;); ax.grid(alpha=0.3)
+plt.show()</pre></div></details>
+<h3 id="the-single-variable-update-rule-the-rule">The rule</h3>
+<p>At each step, update the parameter by taking the current gradient and moving <em>against</em> it:</p>
+<div class="tex-d">\theta_{\text{new}} \;=\; \theta_{\text{old}} - \eta \, \frac{d L}{d \theta}(\theta_{\text{old}})</div>
+<p>The scalar <span class="tex">\eta &gt; 0</span> is the <strong>learning rate</strong> — how big a step to take.</p>
+<h3 id="the-single-variable-update-rule-worked-example">Worked example</h3>
+<p>Minimise <span class="tex">L(\theta) = (\theta - 3)^2</span>. Gradient: <span class="tex">L&#x27;(\theta) = 2(\theta - 3)</span>.</p>
+<p>Start at <span class="tex">\theta_0 = 0</span>, <span class="tex">\eta = 0.1</span>:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:center">Step</th>
+<th style="text-align:center"><span class="tex">\theta</span></th>
+<th style="text-align:center"><span class="tex">L(\theta)</span></th>
+<th style="text-align:center"><span class="tex">L&#x27;(\theta)</span></th>
+<th style="text-align:center">update</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">0</td>
+<td style="text-align:center">0.0</td>
+<td style="text-align:center">9.00</td>
+<td style="text-align:center">-6.0</td>
+<td style="text-align:center">+0.6</td>
+</tr>
+<tr>
+<td style="text-align:center">1</td>
+<td style="text-align:center">0.6</td>
+<td style="text-align:center">5.76</td>
+<td style="text-align:center">-4.8</td>
+<td style="text-align:center">+0.48</td>
+</tr>
+<tr>
+<td style="text-align:center">2</td>
+<td style="text-align:center">1.08</td>
+<td style="text-align:center">3.69</td>
+<td style="text-align:center">-3.84</td>
+<td style="text-align:center">+0.384</td>
+</tr>
+<tr>
+<td style="text-align:center">3</td>
+<td style="text-align:center">1.464</td>
+<td style="text-align:center">2.36</td>
+<td style="text-align:center">-3.07</td>
+<td style="text-align:center">+0.307</td>
+</tr>
+<tr>
+<td style="text-align:center">...</td>
+<td style="text-align:center">...</td>
+<td style="text-align:center">...</td>
+<td style="text-align:center">...</td>
+<td style="text-align:center">...</td>
+</tr>
+<tr>
+<td style="text-align:center">∞</td>
+<td style="text-align:center">→ 3.0</td>
+<td style="text-align:center">0.0</td>
+<td style="text-align:center">0.0</td>
+<td style="text-align:center">0</td>
+</tr>
+</tbody>
+</table></div>
+<p>Exponential decay to the true minimum. That's what convergence looks like when things go well.</p>
+<h3 id="the-single-variable-update-rule-generalising-to-many-parameters">Generalising to many parameters</h3>
+<p>Same rule, one gradient component per parameter:</p>
+<div class="tex-d">\theta_i \;\leftarrow\; \theta_i - \eta \, \frac{\partial L}{\partial \theta_i}</div>
+<p>or in vector form:</p>
+<div class="tex-d">\boldsymbol{\theta} \;\leftarrow\; \boldsymbol{\theta} - \eta \, \nabla L(\boldsymbol{\theta})</div>
+<p>For an MLP, <span class="tex">\boldsymbol{\theta}</span> contains every weight and bias flattened into one vector. Backpropagation (<a href="07_backpropagation.html">note 07</a>) is how we compute <span class="tex">\nabla L</span>.</p>
+<div class="donebar"><button class="donebtn" data-done="the-single-variable-update-rule">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-learning-rate-the-most-important-hyperparameter" data-num="04" data-title="The learning rate — the most important hyperparameter">
+<h2><span class="num">04</span> The learning rate — the most important hyperparameter</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-04.png" alt="The same problem, L(θ) = (θ − 3)², with three learning rates. The loss after each step: too small creeps down, a good rate drops fast, too large makes every step overshoot further and the loss explodes." loading="lazy"><figcaption>The same problem, L(θ) = (θ − 3)², with three learning rates. The loss after each step: too small creeps down, a good rate drops fast, too large makes every step overshoot further and the loss explodes.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots(figsize=(7, 3.8))
+for lr, c in [(0.02, &quot;#6b7280&quot;), (0.3, &quot;#059669&quot;), (1.05, &quot;#dc2626&quot;)]:
+    th, losses = 0.0, []
+    for _ in range(25):
+        losses.append((th - 3) ** 2); th -= lr * 2 * (th - 3)
+    ax.plot(losses, &quot;o-&quot;, ms=3, color=c, label=f&quot;η = {lr}&quot;)
+ax.set_yscale(&quot;log&quot;); ax.set_xlabel(&quot;step&quot;); ax.set_ylabel(&quot;loss (log scale)&quot;); ax.legend(fontsize=9); ax.grid(alpha=0.3)
+plt.show()</pre></div></details>
+<h3 id="the-learning-rate-the-most-important-hyperparameter-what-can-go-wrong">What can go wrong</h3>
+<ul>
+<li><strong>Too small</strong> — takes forever. Also easy to get stuck in a very flat region.</li>
+<li><strong>Too big</strong> — overshoots the minimum. Loss bounces around or explodes.</li>
+<li><strong>Just right</strong> — converges smoothly in reasonable time.</li>
+</ul>
+<p>There is no universal &quot;correct&quot; value. It depends on the loss landscape, model size, data scale, and choice of optimiser.</p>
+<h3 id="the-learning-rate-the-most-important-hyperparameter-typical-starting-values">Typical starting values</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Optimiser</th>
+<th style="text-align:left">Sensible LR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Plain SGD</td>
+<td style="text-align:left">0.01 - 0.1</td>
+</tr>
+<tr>
+<td style="text-align:left">SGD + momentum</td>
+<td style="text-align:left">0.01 - 0.1</td>
+</tr>
+<tr>
+<td style="text-align:left">Adam</td>
+<td style="text-align:left">1e-4 - 1e-3</td>
+</tr>
+<tr>
+<td style="text-align:left">AdamW (transformers)</td>
+<td style="text-align:left">1e-5 - 5e-4</td>
+</tr>
+</tbody>
+</table></div>
+<p>Start with the default, watch the loss curve, halve if it explodes, double if it plods.</p>
+<p>Instead of a fixed rate you can also change it during training: that is a <em>schedule</em>, the last section of this note.</p>
+<div class="donebar"><button class="donebtn" data-done="the-learning-rate-the-most-important-hyperparameter">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="convex-vs-non-convex-loss-landscapes" data-num="05" data-title="Convex vs non-convex loss landscapes">
+<h2><span class="num">05</span> Convex vs non-convex loss landscapes</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-05.png" alt="Left: a convex loss: any chord lies above the curve and there is one minimum, so gradient descent finds it from anywhere. Right: a non-convex loss: a chord can cross below the curve, and there are several minima." loading="lazy"><figcaption>Left: a convex loss: any chord lies above the curve and there is one minimum, so gradient descent finds it from anywhere. Right: a non-convex loss: a chord can cross below the curve, and there are several minima.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+w = np.linspace(-3, 3, 300)
+fig, axes = plt.subplots(1, 2, figsize=(11, 3.6))
+conv = lambda w: 0.5 * w ** 2 + 0.3 * w + 1
+nonc = lambda w: 0.05 * w ** 4 - 0.6 * w ** 2 + 0.35 * w + 2
+for ax, f, name, (a, b) in [(axes[0], conv, &quot;convex&quot;, (-2.5, 2.0)), (axes[1], nonc, &quot;non-convex&quot;, (-2.5, 2.3))]:
+    ax.plot(w, f(w), color=&quot;#111827&quot;, lw=2)
+    ax.plot([a, b], [f(a), f(b)], &quot;--&quot;, color=&quot;#2563eb&quot;, lw=1.5, label=&quot;a chord&quot;)
+    ax.scatter([a, b], [f(a), f(b)], color=&quot;#2563eb&quot;, zorder=3)
+    ax.set_title(name, fontsize=10); ax.grid(alpha=0.3); ax.legend(fontsize=8.5); ax.set_xlabel(&quot;w&quot;)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="convex-vs-non-convex-loss-landscapes-convex-the-theory-friendly-case">Convex — the theory-friendly case</h3>
+<p>A <strong>convex</strong> function has a single global minimum and no local minima. Any line segment between two points on the graph stays above the graph. Linear regression, logistic regression, SVMs all have convex losses.</p>
+<p>For convex losses, gradient descent (with a decent learning rate) is <em>guaranteed</em> to reach the global minimum.</p>
+<h3 id="convex-vs-non-convex-loss-landscapes-non-convex-every-deep-network">Non-convex — every deep network</h3>
+<p>Deep networks have loss landscapes with:</p>
+<ul>
+<li>Many local minima.</li>
+<li>Long flat valleys.</li>
+<li>Sharp cliffs.</li>
+<li>Saddle points everywhere (next section).</li>
+</ul>
+<p>Gradient descent has <strong>no convergence guarantee</strong> here — you can get stuck. But empirically, it works remarkably well.</p>
+<h3 id="convex-vs-non-convex-loss-landscapes-why-does-it-work-despite-being-non-convex">Why does it work despite being non-convex?</h3>
+<p>Three empirical observations from the last decade:</p>
+<ul>
+<li><strong>Most local minima are almost as good as the global one.</strong> In high dimensions, &quot;bad&quot; local minima are rare.</li>
+<li><strong>The stochastic noise in SGD</strong> helps escape shallow minima and saddle points.</li>
+<li><strong>Over-parameterised networks</strong> (more params than data) have surprisingly gentle loss landscapes.</li>
+</ul>
+<p>Nobody has a full theory, but the empirical evidence is overwhelming.</p>
+<div class="donebar"><button class="donebtn" data-done="convex-vs-non-convex-loss-landscapes">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="saddle-points-the-real-enemy" data-num="06" data-title="Saddle points — the real enemy">
+<h2><span class="num">06</span> Saddle points — the real enemy</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-06.png" alt="A saddle, f(x, y) = x² − y². At the origin the gradient is zero, yet it is a minimum along x and a maximum along y. Gradient descent started near the x-axis crawls toward the origin and lingers there before sliding off along y." loading="lazy"><figcaption>A saddle, f(x, y) = x² − y². At the origin the gradient is zero, yet it is a minimum along x and a maximum along y. Gradient descent started near the x-axis crawls toward the origin and lingers there before sliding off along y.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+X, Y = np.meshgrid(np.linspace(-2, 2, 60), np.linspace(-2, 2, 60))
+Z = X ** 2 - Y ** 2
+fig = plt.figure(figsize=(11, 4))
+ax = fig.add_subplot(1, 2, 1, projection=&quot;3d&quot;)
+ax.plot_surface(X, Y, Z, cmap=&quot;coolwarm&quot;, alpha=0.85, linewidth=0)
+ax.scatter([0], [0], [0], color=&quot;k&quot;, s=40); ax.set_xlabel(&quot;x&quot;); ax.set_ylabel(&quot;y&quot;); ax.set_title(&quot;f = x² − y²&quot;, fontsize=10)
+ax2 = fig.add_subplot(1, 2, 2)
+ax2.contour(X, Y, Z, levels=15, cmap=&quot;coolwarm&quot;)
+p = np.array([1.9, 1e-3]); path = [p.copy()]
+for _ in range(60):
+    p = p - 0.1 * np.array([2 * p[0], -2 * p[1]]); path.append(p.copy())
+path = np.array(path)
+ax2.plot(path[:, 0], path[:, 1], &quot;k.-&quot;, ms=4, lw=1)
+ax2.scatter([0], [0], color=&quot;k&quot;, s=40); ax2.set_aspect(&quot;equal&quot;); ax2.set_title(&quot;gradient descent from (1.9, 0.001)&quot;, fontsize=10)
+ax2.set_xlim(-2, 2); ax2.set_ylim(-2, 2)
+plt.tight_layout(); plt.show()</pre></div></details>
+<h3 id="saddle-points-the-real-enemy-what-they-are">What they are</h3>
+<p>A <strong>saddle point</strong> is a point where the gradient is zero but the function <em>isn't</em> at a minimum. Along one axis it curves up; along another it curves down.</p>
+<p>In high dimensions saddle points <em>massively outnumber</em> local minima. That's the actual optimisation challenge in deep learning — not local minima but saddles that trap gradient descent for many steps.</p>
+<h3 id="saddle-points-the-real-enemy-why-theyre-worse-than-local-minima">Why they're worse than local minima</h3>
+<p>At a saddle point, the gradient is (nearly) zero — so gradient descent barely moves. But you're not at a good solution; you're stuck on a plateau.</p>
+<p>Local minima at least have &quot;you found something&quot;. Saddle points give you a false sense of convergence.</p>
+<h3 id="saddle-points-the-real-enemy-the-fix">The fix</h3>
+<ul>
+<li><strong>Momentum</strong> (below) — keeps moving in a direction that's been helpful, coasting through flat regions.</li>
+<li><strong>Adaptive optimisers</strong> (Adam) — adjust step size per parameter, so directions with tiny gradients still get moved.</li>
+<li><strong>Stochastic noise</strong> — mini-batch gradients aren't the true gradient; the noise perturbs you off saddles.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="saddle-points-the-real-enemy">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="batch-mini-batch-stochastic" data-num="07" data-title="Batch, mini-batch, stochastic">
+<h2><span class="num">07</span> Batch, mini-batch, stochastic</h2>
+<h3 id="batch-mini-batch-stochastic-batch-full-gradient-descent">Batch (Full) Gradient Descent</h3>
+<p>Use <em>all</em> training examples to compute the gradient before each update.</p>
+<ul>
+<li>Very accurate gradient — smooth trajectory.</li>
+<li>Very expensive — one step requires a full pass through the dataset.</li>
+<li>Deterministic — same trajectory every time.</li>
+</ul>
+<p>Rarely used for anything but small datasets or theoretical analysis.</p>
+<h3 id="batch-mini-batch-stochastic-stochastic-gradient-descent-sgd">Stochastic Gradient Descent (SGD)</h3>
+<p>One example at a time. Update after every sample.</p>
+<ul>
+<li>Very cheap per step.</li>
+<li>Very noisy gradient — trajectory zig-zags around.</li>
+<li>Noise can <em>help</em> — pushes past saddle points and shallow minima.</li>
+</ul>
+<figure class="fig"><img src="images/out/06_gradient_descent-07.png" alt="Paths of batch, mini-batch and stochastic gradient descent on the same linear-regression loss (contours). Batch steps follow the true gradient; single-example SGD wanders because each step sees one noisy example; mini-batches sit in between." loading="lazy"><figcaption>Paths of batch, mini-batch and stochastic gradient descent on the same linear-regression loss (contours). Batch steps follow the true gradient; single-example SGD wanders because each step sees one noisy example; mini-batches sit in between.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+rng = np.random.default_rng(0)
+n = 256; Xd = rng.normal(size=(n, 2)) * [1.0, 0.6]; w_true = np.array([2.0, -1.0])
+yd = Xd @ w_true + rng.normal(0, 0.5, n)
+loss = lambda W: np.mean((Xd @ W - yd) ** 2)
+fig, ax = plt.subplots(figsize=(7, 5))
+A, B = np.meshgrid(np.linspace(-1, 3.5, 120), np.linspace(-2.5, 2, 120))
+Z = np.array([[loss(np.array([a, b])) for a in A[0]] for b in B[:, 0]])
+ax.contour(A, B, Z, levels=20, cmap=&quot;Greys&quot;, alpha=0.6)
+for bs, c, name in [(n, &quot;#2563eb&quot;, &quot;batch (256)&quot;), (16, &quot;#059669&quot;, &quot;mini-batch (16)&quot;), (1, &quot;#dc2626&quot;, &quot;SGD (1)&quot;)]:
+    w = np.array([-0.5, 1.5]); path = [w.copy()]
+    for step in range(40):
+        idx = rng.choice(n, bs, replace=False)
+        g = 2 * Xd[idx].T @ (Xd[idx] @ w - yd[idx]) / bs
+        w = w - 0.08 * g; path.append(w.copy())
+    path = np.array(path); ax.plot(path[:, 0], path[:, 1], &quot;.-&quot;, color=c, ms=4, lw=1, label=name)
+ax.scatter(*w_true, marker=&quot;*&quot;, s=200, color=&quot;k&quot;, zorder=3, label=&quot;true weights&quot;)
+ax.set_xlabel(&quot;w₁&quot;); ax.set_ylabel(&quot;w₂&quot;); ax.legend(fontsize=8.5)
+plt.show()</pre></div></details>
+<h3 id="batch-mini-batch-stochastic-mini-batch-gd-the-practical-default">Mini-batch GD — the practical default</h3>
+<p>A small batch (32, 64, 128, ...) between the two extremes.</p>
+<ul>
+<li>Reasonable gradient estimate.</li>
+<li>Efficient on GPU (matrix multiplies over a batch are fast).</li>
+<li>Noise level is a tunable knob (smaller batch = noisier).</li>
+</ul>
+<p><strong>Standard practice today.</strong> When someone says &quot;SGD&quot;, they usually mean mini-batch SGD.</p>
+<h3 id="batch-mini-batch-stochastic-how-many-steps-per-epoch">How many &quot;steps&quot; per epoch</h3>
+<ul>
+<li><strong>Batch GD</strong> — 1 update per epoch.</li>
+<li><strong>SGD</strong> — N updates per epoch (N = dataset size).</li>
+<li><strong>Mini-batch</strong> — N / B updates per epoch (B = batch size).</li>
+</ul>
+<p>An epoch is one pass through the training set; how many <em>update steps</em> that entails depends on the batch size.</p>
+<h3 id="batch-mini-batch-stochastic-the-three-side-by-side">The three side by side</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left"></th>
+<th style="text-align:left">Batch GD</th>
+<th style="text-align:left">Stochastic GD</th>
+<th style="text-align:left">Mini-batch GD</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Data per update</td>
+<td style="text-align:left">the whole training set</td>
+<td style="text-align:left">one example</td>
+<td style="text-align:left">a mini-batch (e.g. 32–256)</td>
+</tr>
+<tr>
+<td style="text-align:left">Updates per epoch</td>
+<td style="text-align:left">1</td>
+<td style="text-align:left"><span class="tex">N</span></td>
+<td style="text-align:left"><span class="tex">N / B</span></td>
+</tr>
+<tr>
+<td style="text-align:left">Path</td>
+<td style="text-align:left">smooth, stable</td>
+<td style="text-align:left">noisy, erratic</td>
+<td style="text-align:left">fairly smooth</td>
+</tr>
+<tr>
+<td style="text-align:left">Cost per update</td>
+<td style="text-align:left">high</td>
+<td style="text-align:left">very low</td>
+<td style="text-align:left">moderate, and fast on a GPU</td>
+</tr>
+<tr>
+<td style="text-align:left">Memory</td>
+<td style="text-align:left">high</td>
+<td style="text-align:left">low</td>
+<td style="text-align:left">moderate</td>
+</tr>
+</tbody>
+</table></div>
+<p>Mini-batch is the default for nearly all deep learning: close to the stability of batch GD, close to the speed of SGD, and a batch is exactly the shape a GPU is good at.</p>
+<div class="donebar"><button class="donebtn" data-done="batch-mini-batch-stochastic">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="momentum-rmsprop-adam" data-num="08" data-title="Momentum, RMSProp, Adam">
+<h2><span class="num">08</span> Momentum, RMSProp, Adam</h2>
+<figure class="fig"><img src="images/out/06_gradient_descent-08.png" alt="Loss against step on a long, narrow valley, f(x, y) = 0.5x² + 25y², starting at (−9, 1). Plain gradient descent must keep its step small to stay stable in the steep y direction, so it crawls along x; momentum builds up speed along x; Adam rescales each coordinate so both shrink at a similar rate." loading="lazy"><figcaption>Loss against step on a long, narrow valley, f(x, y) = 0.5x² + 25y², starting at (−9, 1). Plain gradient descent must keep its step small to stay stable in the steep y direction, so it crawls along x; momentum builds up speed along x; Adam rescales each coordinate so both shrink at a similar rate.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+f = lambda p: 0.5 * p[0] ** 2 + 25 * p[1] ** 2
+g = lambda p: np.array([p[0], 50 * p[1]])
+def run(kind, steps=150):
+    p = np.array([-9.0, 1.0]); m = np.zeros(2); v = np.zeros(2); out = []
+    for t in range(1, steps + 1):
+        out.append(f(p)); gr = g(p)
+        if kind == &quot;GD&quot;: p = p - 0.035 * gr
+        elif kind == &quot;momentum&quot;: m = 0.9 * m + gr; p = p - 0.012 * m
+        else:
+            m = 0.9 * m + 0.1 * gr; v = 0.999 * v + 0.001 * gr ** 2
+            p = p - 0.3 * (m / (1 - 0.9 ** t)) / (np.sqrt(v / (1 - 0.999 ** t)) + 1e-8)
+    return out
+fig, ax = plt.subplots(figsize=(7, 3.8))
+for kind, c in [(&quot;GD&quot;, &quot;#6b7280&quot;), (&quot;momentum&quot;, &quot;#2563eb&quot;), (&quot;Adam&quot;, &quot;#dc2626&quot;)]:
+    ax.plot(run(kind), color=c, lw=2, label=kind)
+ax.set_yscale(&quot;log&quot;); ax.set_xlabel(&quot;step&quot;); ax.set_ylabel(&quot;loss (log)&quot;); ax.legend(fontsize=9); ax.grid(alpha=0.3)
+plt.show()</pre></div></details>
+<h3 id="momentum-rmsprop-adam-momentum">Momentum</h3>
+<p>Keep a running average of past gradients, and move in <em>that</em> direction:</p>
+<div class="tex-d">\mathbf{v}_t \;=\; \beta \mathbf{v}_{t-1} + (1 - \beta) \nabla L(\theta_t)</div>
+<div class="tex-d">\theta_{t+1} \;=\; \theta_t - \eta \, \mathbf{v}_t</div>
+<p><span class="tex">\beta \in [0.9, 0.99]</span> is the momentum coefficient.</p>
+<p><strong>Intuition</strong>: a ball rolling downhill picks up speed. It coasts through flat sections and doesn't zig-zag as much across narrow valleys.</p>
+<h3 id="momentum-rmsprop-adam-rmsprop-adaptive-learning-rate">RMSProp — adaptive learning rate</h3>
+<p>Track a running average of squared gradients:</p>
+<div class="tex-d">\mathbf{s}_t = \beta \mathbf{s}_{t-1} + (1 - \beta) [\nabla L]^2</div>
+<div class="tex-d">\theta_{t+1} = \theta_t - \frac{\eta}{\sqrt{\mathbf{s}_t} + \epsilon} \, \nabla L</div>
+<p>Each parameter gets a scaled step: <strong>frequently-large gradients</strong> get small steps; <strong>rarely-updated parameters</strong> get bigger steps.</p>
+<h3 id="momentum-rmsprop-adam-adam-momentum-rmsprop">Adam — momentum + RMSProp</h3>
+<p>Adam (Adaptive Moment Estimation) combines both:</p>
+<div class="tex-d">\mathbf{m}_t = \beta_1 \mathbf{m}_{t-1} + (1 - \beta_1) \nabla L</div>
+<div class="tex-d">\mathbf{v}_t = \beta_2 \mathbf{v}_{t-1} + (1 - \beta_2) [\nabla L]^2</div>
+<p>Bias-corrected: <span class="tex">\hat{\mathbf{m}}_t = \mathbf{m}_t / (1 - \beta_1^t)</span> and similarly for <span class="tex">\hat{\mathbf{v}}_t</span>.</p>
+<div class="tex-d">\theta_{t+1} = \theta_t - \frac{\eta}{\sqrt{\hat{\mathbf{v}}_t} + \epsilon} \, \hat{\mathbf{m}}_t</div>
+<p>Standard defaults: <span class="tex">\beta_1 = 0.9, \beta_2 = 0.999, \epsilon = 10^{-8}</span>, <span class="tex">\eta = 10^{-3}</span>.</p>
+<p><strong>Adam is the usual default optimiser</strong> in deep learning: it works reasonably well with its default settings on most problems.</p>
+<h3 id="momentum-rmsprop-adam-adamw-the-transformer-standard">AdamW — the transformer standard</h3>
+<p>AdamW decouples weight decay from Adam's adaptive step. Adding an L2 penalty to the loss (the classic way) gets divided by <span class="tex">\sqrt{\hat{\mathbf{v}}_t}</span> inside Adam, so parameters with large gradients are barely regularised; AdamW instead shrinks every weight directly, <span class="tex">\theta \leftarrow \theta - \eta\lambda\theta</span>. It is the standard optimiser for training transformers (GPT-3, LLaMA and most others).</p>
+<div class="donebar"><button class="donebtn" data-done="momentum-rmsprop-adam">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="learning-rate-schedules" data-num="09" data-title="Learning rate schedules">
+<h2><span class="num">09</span> Learning rate schedules</h2>
+<h3 id="learning-rate-schedules-why-schedule-the-lr">Why schedule the LR</h3>
+<ul>
+<li>Early in training you want to move fast (big LR).</li>
+<li>Later you want to fine-tune (small LR).</li>
+<li>Sudden LR drops can help escape plateaus.</li>
+</ul>
+<h3 id="learning-rate-schedules-common-schedules">Common schedules</h3>
+<ul>
+<li><strong>Step decay</strong> — divide LR by 10 every N epochs.</li>
+<li><strong>Exponential decay</strong> — LR × γ^step.</li>
+<li><strong>Cosine annealing</strong> — LR follows a cosine from initial down to 0.</li>
+<li><strong>Warmup + cosine</strong> — ramp up over first ~1% of training, then cosine decay. Modern LLM default.</li>
+<li><strong>ReduceLROnPlateau</strong> — when validation loss plateaus for K epochs, cut LR by half.</li>
+</ul>
+<h3 id="learning-rate-schedules-when-to-use-which">When to use which</h3>
+<ul>
+<li><strong>CNNs</strong> — step decay or cosine annealing.</li>
+<li><strong>Transformers</strong> — warmup + cosine or warmup + linear.</li>
+<li><strong>Anything</strong> — ReduceLROnPlateau is a safe fallback when you're unsure.</li>
+</ul>
+<div class="donebar"><button class="donebtn" data-done="learning-rate-schedules">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo" data-num="10" data-title="Runnable demo">
+<h2><span class="num">10</span> Runnable demo</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+# 1D quadratic loss with a global minimum at theta = 3
+def L(theta): return (theta - 3) ** 2
+def dL(theta): return 2 * (theta - 3)
+
+# Run gradient descent from theta = 0
+def gd_run(lr, n_steps=30, theta0=0.0):
+    theta = theta0
+    path = [theta]
+    for _ in range(n_steps):
+        theta = theta - lr * dL(theta)
+        path.append(theta)
+    return np.array(path)
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+for ax, lr, title in zip(axes, [0.05, 0.5, 1.05], [&#x27;LR too small (0.05)&#x27;, &#x27;LR good (0.5)&#x27;, &#x27;LR too large (1.05)&#x27;]):
+    path = gd_run(lr, n_steps=30)
+    theta_range = np.linspace(-2, 8, 200)
+    ax.plot(theta_range, L(theta_range), &#x27;b-&#x27;, alpha=0.5)
+    ax.plot(path, L(path), &#x27;r-o&#x27;, markersize=6)
+    ax.axvline(3, color=&#x27;green&#x27;, ls=&#x27;--&#x27;, label=&#x27;true minimum&#x27;)
+    ax.set_title(title); ax.set_xlabel(&#x27;theta&#x27;); ax.set_ylabel(&#x27;L(theta)&#x27;)
+    ax.grid(alpha=0.3); ax.legend()
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/06_gradient_descent-09.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-adam-vs-sgd-on-a-narrow-valley-rosenbrock-function">Adam vs SGD on a narrow valley (Rosenbrock function)</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def rosenbrock(x, y): return (1 - x)**2 + 100 * (y - x**2)**2
+def rosenbrock_grad(x, y):
+    dx = -2*(1 - x) - 400*x*(y - x**2)
+    dy = 200*(y - x**2)
+    return np.array([dx, dy])
+
+def optimise(start, lr, n_steps, optimiser=&#x27;sgd&#x27;):
+    theta = np.array(start, dtype=float)
+    path = [theta.copy()]
+    m = np.zeros(2); v = np.zeros(2)
+    b1, b2, eps = 0.9, 0.999, 1e-8
+    for t in range(1, n_steps + 1):
+        g = rosenbrock_grad(*theta)
+        if optimiser == &#x27;sgd&#x27;:
+            theta = theta - lr * g
+        elif optimiser == &#x27;momentum&#x27;:
+            m = 0.9 * m + g
+            theta = theta - lr * m
+        elif optimiser == &#x27;adam&#x27;:
+            m = b1 * m + (1 - b1) * g
+            v = b2 * v + (1 - b2) * g**2
+            mhat = m / (1 - b1**t); vhat = v / (1 - b2**t)
+            theta = theta - lr * mhat / (np.sqrt(vhat) + eps)
+        path.append(theta.copy())
+    return np.array(path)
+
+paths = {
+    &#x27;SGD (lr=0.001)&#x27;:      optimise([-1.5, 2.0], 0.001, 2000, &#x27;sgd&#x27;),
+    &#x27;Momentum (lr=0.001)&#x27;: optimise([-1.5, 2.0], 0.001, 2000, &#x27;momentum&#x27;),
+    &#x27;Adam (lr=0.1)&#x27;:       optimise([-1.5, 2.0], 0.1,   2000, &#x27;adam&#x27;),
+}
+
+xg = np.linspace(-2, 2, 300); yg = np.linspace(-1, 3, 300)
+X, Y = np.meshgrid(xg, yg); Z = rosenbrock(X, Y)
+
+fig, ax = plt.subplots(figsize=(9, 6))
+ax.contour(X, Y, Z, levels=np.logspace(-1, 3.5, 30), cmap=&#x27;gray&#x27;, alpha=0.5)
+ax.scatter([1], [1], marker=&#x27;*&#x27;, s=200, c=&#x27;green&#x27;, label=&#x27;global min (1, 1)&#x27;)
+for name, path in paths.items():
+    ax.plot(path[:, 0], path[:, 1], label=name, lw=1.5, alpha=0.8)
+ax.set_xlim(-2, 2); ax.set_ylim(-1, 3)
+ax.set_xlabel(&#x27;x&#x27;); ax.set_ylabel(&#x27;y&#x27;)
+ax.set_title(&#x27;Optimisers on Rosenbrock — a classic narrow-valley test&#x27;)
+ax.legend(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/06_gradient_descent-10.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-batch-vs-mini-batch-vs-sgd-noise-level">Batch vs mini-batch vs SGD — noise level</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Synthetic linear regression
+np.random.seed(0)
+n = 200
+X = np.random.randn(n, 5)
+w_true = np.array([1.5, -2.0, 0.5, 3.0, -1.0])
+y = X @ w_true + 0.5 * np.random.randn(n)
+
+def train(batch_size, epochs=30, lr=0.01):
+    w = np.zeros(5)
+    losses = []
+    for epoch in range(epochs):
+        perm = np.random.permutation(n)
+        for i in range(0, n, batch_size):
+            idx = perm[i:i+batch_size]
+            xb, yb = X[idx], y[idx]
+            grad = 2 * xb.T @ (xb @ w - yb) / len(idx)
+            w = w - lr * grad
+            losses.append(np.mean((X @ w - y) ** 2))
+    return losses
+
+plt.figure(figsize=(9, 5))
+for bs, name in [(200, &#x27;batch (200)&#x27;), (32, &#x27;mini-batch (32)&#x27;), (1, &#x27;SGD (1)&#x27;)]:
+    losses = train(bs)
+    plt.plot(losses, label=name, alpha=0.7)
+plt.xlabel(&#x27;update step&#x27;); plt.ylabel(&#x27;training loss&#x27;)
+plt.title(&#x27;Batch size vs gradient noise&#x27;)
+plt.yscale(&#x27;log&#x27;); plt.legend(); plt.grid(alpha=0.3)
+plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/06_gradient_descent-11.png" alt="plot" loading="lazy"></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="05_loss_functions.html"><small>← Previous</small>Loss Functions</a><a class="next" href="07_backpropagation.html"><small>Next →</small>Backpropagation</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

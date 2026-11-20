@@ -9,5 +9,5 @@ Part **D1** of the course: notes 01–04. Every code cell runs on a live Python 
 {{cards:note}}
 
 :::tip
-Next: **D2: Training Neural Networks**, starting with loss functions (note 05).
+Next: **[D2: Training Neural Networks](../d2-training-neural-networks/index.html)**, starting with loss functions (note 05).
 :::

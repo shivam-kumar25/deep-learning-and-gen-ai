@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regularisation &amp; Training Dynamics · Training Neural Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld2-" data-page="09_regularisation">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Training Neural Networks</a> · <b>Regularisation &amp; Training Dynamics</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">📉</div><div class="eyebrow">Training · note 09</div><h1>Regularisation &amp; Training Dynamics</h1><div class="lead"><p>Stopping the network from memorising the training set. Overfitting, then the toolkit: L1/L2 weight decay, dropout, batch normalisation, early stopping, data augmentation.</p>
+</div></div>
+<section class="sec" id="the-overfitting-problem" data-num="01" data-title="The overfitting problem">
+<h2><span class="num">01</span> The overfitting problem</h2>
+<p><em>Every model with enough capacity can memorise its training data. The point of ML is not to score well on data you've seen — it's to generalise to data you haven't.</em></p>
+<h3 id="the-overfitting-problem-the-two-curves-that-tell-the-story">The two curves that tell the story</h3>
+<p>Track training loss and validation loss over epochs. Three regimes:</p>
+<ul>
+<li><strong>Both high, close together</strong> → <strong>underfitting</strong>. Not enough capacity or training time.</li>
+<li><strong>Both low, close together</strong> → <strong>good fit</strong>. Model captures the signal.</li>
+<li><strong>Training low, validation drifting up</strong> → <strong>overfitting</strong>. The model has started memorising quirks of the training set that don't generalise.</li>
+</ul>
+<p>The moment validation loss starts climbing is the moment you should stop training (or add regularisation).</p>
+<h3 id="the-overfitting-problem-why-deep-networks-overfit-so-easily">Why deep networks overfit so easily</h3>
+<p>Modern DL models are <strong>over-parameterised</strong> — they have far more parameters than training examples. In principle they can express any function that hits every training point exactly. Without a countervailing force they will.</p>
+<p>The countervailing forces are:</p>
+<ul>
+<li><strong>Regularisation</strong> — this note.</li>
+<li><strong>Data augmentation</strong> — increases effective dataset size.</li>
+<li><strong>Early stopping</strong> — halt before memorisation kicks in.</li>
+<li><strong>Architectural inductive biases</strong> — CNNs assume spatial locality, transformers assume token attention. These bake in structural priors.</li>
+</ul>
+<h3 id="the-overfitting-problem-the-paradoxical-modern-regime">The paradoxical modern regime</h3>
+<p>Empirically, hugely over-parameterised networks (billions of parameters, far more than the data has degrees of freedom) still generalise well. Plotting test error against model size can even show <strong>double descent</strong>: the error rises as the model approaches just enough capacity to fit the training set exactly, then falls again as the model grows further. Part of the explanation is that SGD, weight decay and the architecture favour &quot;flat&quot; solutions that generalise over &quot;sharp&quot; ones that memorise. The theory is still catching up.</p>
+<div class="donebar"><button class="donebtn" data-done="the-overfitting-problem">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="bias-variance-tradeoff" data-num="02" data-title="Bias-variance tradeoff">
+<h2><span class="num">02</span> Bias-variance tradeoff</h2>
+<h3 id="bias-variance-tradeoff-the-decomposition">The decomposition</h3>
+<p>For any model, expected test error decomposes into:</p>
+<div class="tex-d">\text{Error} \;=\; \text{Bias}^2 \;+\; \text{Variance} \;+\; \text{irreducible noise}</div>
+<ul>
+<li><strong>Bias</strong> — how wrong the model class <em>itself</em> is. A linear model has high bias on non-linear data.</li>
+<li><strong>Variance</strong> — how much predictions swing depending on the training set. A very flexible model has high variance.</li>
+<li><strong>Irreducible noise</strong> — inherent randomness in the data.</li>
+</ul>
+<h3 id="bias-variance-tradeoff-the-classical-tradeoff-picture">The classical tradeoff picture</h3>
+<p>Increasing model capacity moves along a curve:</p>
+<ul>
+<li>Simple model (linear regression) → high bias, low variance → underfit.</li>
+<li>Complex model (huge decision tree, big MLP) → low bias, high variance → overfit.</li>
+<li>Somewhere in the middle → best generalisation.</li>
+</ul>
+<p>Regularisation <em>reduces variance</em> (at the cost of a small bias increase). That's why it's the standard cure for overfitting.</p>
+<h3 id="bias-variance-tradeoff-seeing-it-in-a-picture">Seeing it in a picture</h3>
+<p>The first runnable cell at the end of this note fits polynomials of degree 1, 5 and 20 to the same 30 noisy points: degree 1 is the high-bias end (a straight line cannot bend to a sine), degree 20 the high-variance end (it chases the noise and swings wildly between points). Rerun it with a different <code>np.random.seed</code> and watch the degree-20 curve change shape completely while the degree-1 line barely moves: that is variance.</p>
+<div class="donebar"><button class="donebtn" data-done="bias-variance-tradeoff">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="l1-l2-weight-decay" data-num="03" data-title="L1 / L2 weight decay">
+<h2><span class="num">03</span> L1 / L2 weight decay</h2>
+<p><em>Add a penalty on large weights directly to the loss. Discourages the network from over-relying on any single weight.</em></p>
+<h3 id="l1-l2-weight-decay-l2-regularisation-weight-decay">L2 regularisation (weight decay)</h3>
+<p>Add to the loss:</p>
+<div class="tex-d">L_{\text{reg}}(\theta) \;=\; L(\theta) \;+\; \frac{\lambda}{2} \, \sum_i \theta_i^2</div>
+<p><span class="tex">\lambda &gt; 0</span> is the regularisation strength.</p>
+<p>The gradient of the penalty is <span class="tex">\lambda \theta</span>. So the update becomes:</p>
+<div class="tex-d">\theta \;\leftarrow\; \theta - \eta \bigl(\nabla L(\theta) + \lambda \theta\bigr) \;=\; (1 - \eta \lambda) \theta - \eta \nabla L(\theta)</div>
+<p>That <span class="tex">(1 - \eta \lambda)</span> factor is where the name <strong>weight decay</strong> comes from — each step gently shrinks all weights toward zero.</p>
+<h3 id="l1-l2-weight-decay-l1-regularisation">L1 regularisation</h3>
+<p>Same idea, but penalise the <em>absolute value</em>:</p>
+<div class="tex-d">L_{\text{reg}}(\theta) \;=\; L(\theta) \;+\; \lambda \sum_i |\theta_i|</div>
+<p>L1 encourages <em>sparsity</em> — many weights hit exactly zero. Useful for feature selection but rare in modern deep learning.</p>
+<h3 id="l1-l2-weight-decay-typical-values">Typical values</h3>
+<ul>
+<li><strong>L2</strong>: <span class="tex">\lambda \in [10^{-5}, 10^{-3}]</span>. <code>weight_decay=1e-4</code> is a common PyTorch default.</li>
+<li><strong>L1</strong>: <span class="tex">\lambda \in [10^{-6}, 10^{-4}]</span>. Rarely used alone; sometimes combined with L2 (&quot;elastic net&quot;).</li>
+</ul>
+<h3 id="l1-l2-weight-decay-adamw-vs-adam">AdamW vs Adam</h3>
+<p><strong>Adam + weight decay via the loss</strong> is not the same as &quot;SGD + weight decay&quot; — because Adam's adaptive learning rates scale the decay differently per parameter. <strong>AdamW</strong> (Loshchilov &amp; Hutter, 2019) decouples the decay from the loss gradient (see <a href="06_gradient_descent.html">note 06</a>). It is the standard optimiser for transformers.</p>
+<div class="donebar"><button class="donebtn" data-done="l1-l2-weight-decay">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="dropout" data-num="04" data-title="Dropout">
+<h2><span class="num">04</span> Dropout</h2>
+<p><em>Randomly zero out a fraction of activations during training. Forces the network not to rely on any single unit.</em></p>
+<h3 id="dropout-the-idea">The idea</h3>
+<p>At each training step, for each hidden unit, flip a biased coin. With probability <span class="tex">p</span> (the <strong>drop probability</strong>), <em>drop</em> the unit — set its output to zero for this batch.</p>
+<p>At <strong>test time</strong>, don't drop anything; scale activations by <span class="tex">(1 - p)</span> to keep the expected input to the next layer the same.</p>
+<p>Modern frameworks use <strong>inverted dropout</strong> — scale by <span class="tex">1/(1-p)</span> <em>during training</em> so no scaling is needed at test time.</p>
+<h3 id="dropout-why-it-works">Why it works</h3>
+<ul>
+<li><strong>Ensemble intuition.</strong> Each mini-batch trains a random sub-network. The final model is like averaging over an exponential number of thinned networks.</li>
+<li><strong>Prevents co-adaptation.</strong> Neurons can't rely on specific other neurons being present — they have to develop robust features.</li>
+<li><strong>Injects noise.</strong> Similar in spirit to data augmentation, but at the activation level.</li>
+</ul>
+<h3 id="dropout-where-to-put-dropout">Where to put dropout</h3>
+<ul>
+<li><strong>After fully-connected layers</strong> — most common. <code>Linear → ReLU → Dropout(0.5)</code>.</li>
+<li><strong>After conv layers</strong> — sometimes, at lower rates (0.1-0.25). CNNs already have implicit regularisation from weight sharing.</li>
+<li><strong>Between attention and FFN layers in transformers</strong> — standard.</li>
+<li><strong>Never on the output layer.</strong> You want deterministic predictions.</li>
+</ul>
+<h3 id="dropout-typical-drop-rates">Typical drop rates</h3>
+<ul>
+<li>FC layers in an image classifier: 0.5.</li>
+<li>CNN layers: 0.1 - 0.25.</li>
+<li>Transformers: 0.1.</li>
+</ul>
+<p>Higher drop rate = stronger regularisation but slower training.</p>
+<h3 id="dropout-interaction-with-batch-norm">Interaction with batch norm</h3>
+<p>Dropout and batch norm can conflict — batch norm's running statistics get skewed by the randomness. Standard practice: <strong>BN before dropout</strong>, or use one but not both in the same block.</p>
+<div class="donebar"><button class="donebtn" data-done="dropout">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="batch-normalisation" data-num="05" data-title="Batch normalisation">
+<h2><span class="num">05</span> Batch normalisation</h2>
+<p><em>Normalise the activations at each layer so downstream layers see stable statistics. Not strictly regularisation, but has a regularising side effect and drastically improves trainability.</em></p>
+<h3 id="batch-normalisation-the-operation">The operation</h3>
+<p>For each activation <span class="tex">a</span> in a layer, across the current mini-batch:</p>
+<div class="tex-d">\mu = \frac{1}{B} \sum_{i=1}^{B} a_i, \qquad \sigma^2 = \frac{1}{B} \sum_{i=1}^{B} (a_i - \mu)^2</div>
+<div class="tex-d">\hat{a} = \frac{a - \mu}{\sqrt{\sigma^2 + \epsilon}}, \qquad y = \gamma \hat{a} + \beta</div>
+<p><span class="tex">\gamma</span> and <span class="tex">\beta</span> are <strong>learnable</strong> scale and shift parameters. They let the network undo the normalisation if it wants to — but usually the normalisation is helpful.</p>
+<h3 id="batch-normalisation-what-it-buys-you">What it buys you</h3>
+<ul>
+<li><strong>Faster training.</strong> Each layer sees ~unit-variance inputs; gradients are well-scaled.</li>
+<li><strong>Higher learning rates possible.</strong> Less risk of exploding/vanishing.</li>
+<li><strong>Some regularisation.</strong> The mini-batch statistics inject noise similar to dropout.</li>
+<li><strong>Fewer initialisation headaches.</strong> BN partially masks bad init.</li>
+</ul>
+<h3 id="batch-normalisation-train-vs-eval-mode">Train vs eval mode</h3>
+<p>At <strong>training time</strong>, use the current batch's <span class="tex">\mu, \sigma^2</span>.</p>
+<p>At <strong>eval/inference time</strong>, use <em>running averages</em> of <span class="tex">\mu, \sigma^2</span> collected during training. Switching between modes (<code>model.train()</code> / <code>model.eval()</code> in PyTorch) is critical — forgetting is a classic bug.</p>
+<h3 id="batch-normalisation-variants">Variants</h3>
+<ul>
+<li><strong>Layer norm</strong> — normalise across features per-example, not across the batch. Used in transformers (batch statistics are unstable for small batches).</li>
+<li><strong>Group norm</strong> — a compromise; used when batch size is very small.</li>
+<li><strong>Instance norm</strong> — normalise per-example per-channel. Used in style transfer.</li>
+</ul>
+<p><strong>Rule of thumb</strong> — CNNs → BN, transformers → LayerNorm, tiny batches → GroupNorm.</p>
+<div class="donebar"><button class="donebtn" data-done="batch-normalisation">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="early-stopping" data-num="06" data-title="Early stopping">
+<h2><span class="num">06</span> Early stopping</h2>
+<p><em>Watch the validation loss. When it stops improving, stop training.</em></p>
+<h3 id="early-stopping-the-algorithm">The algorithm</h3>
+<div class="codewrap"><pre class="code" data-lang="text">best_val_loss = inf
+patience_counter = 0
+for epoch in epochs:
+    train_one_epoch()
+    val_loss = evaluate(validation_set)
+    if val_loss &lt; best_val_loss:
+        best_val_loss = val_loss
+        save_model()                # keep the best checkpoint
+        patience_counter = 0
+    else:
+        patience_counter += 1
+        if patience_counter &gt;= patience:
+            break                   # stop</pre></div>
+<p>Typical patience: 5-20 epochs.</p>
+<h3 id="early-stopping-why-it-works">Why it works</h3>
+<ul>
+<li><strong>Almost free.</strong> One setting (the patience) and no change to the model.</li>
+<li><strong>Networks learn the broad patterns first.</strong> Early in training the weights pick up what most examples share; the quirks of individual examples are fitted later. Stopping in between keeps the first and skips the second.</li>
+</ul>
+<h3 id="early-stopping-the-one-thing-to-remember">The one thing to remember</h3>
+<p><strong>Track validation loss, not training loss.</strong> Training loss always decreases; validation loss is what tells you generalisation is going the wrong way.</p>
+<div class="donebar"><button class="donebtn" data-done="early-stopping">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="data-augmentation-as-regularisation" data-num="07" data-title="Data augmentation as regularisation">
+<h2><span class="num">07</span> Data augmentation as regularisation</h2>
+<p><em>Train on random perturbations of your data. Effectively multiplies dataset size and forces invariance to task-irrelevant transformations.</em></p>
+<h3 id="data-augmentation-as-regularisation-the-connection-to-regularisation">The connection to regularisation</h3>
+<p>Instead of penalising complexity, data augmentation gives the network <em>more</em> data — every training epoch shows a slightly different version of each example. Effect: the model can't memorise individual images because it never sees the exact same one twice.</p>
+<h3 id="data-augmentation-as-regularisation-vision-augmentations">Vision augmentations</h3>
+<ul>
+<li>Random crop and resize.</li>
+<li>Horizontal flip.</li>
+<li>Colour jitter (brightness, contrast, saturation).</li>
+<li>Random erasing / cutout.</li>
+<li>Mixup / CutMix (blend two images and labels).</li>
+</ul>
+<h3 id="data-augmentation-as-regularisation-text-augmentations">Text augmentations</h3>
+<ul>
+<li>Random synonym substitution.</li>
+<li>Back-translation (translate to French and back).</li>
+<li>Random deletion / swapping.</li>
+</ul>
+<p>Less common than for vision — small perturbations to text can change meaning drastically.</p>
+<h3 id="data-augmentation-as-regularisation-audio-augmentations">Audio augmentations</h3>
+<ul>
+<li>Time shift, pitch shift.</li>
+<li>Add background noise.</li>
+<li>SpecAugment — mask random time or frequency bands in the spectrogram.</li>
+</ul>
+<h3 id="data-augmentation-as-regularisation-the-rule">The rule</h3>
+<p><strong>A transformation is safe augmentation iff it doesn't change the label.</strong> Cropping a cat still shows a cat. Rotating a &quot;6&quot; upside-down turns it into a &quot;9&quot;. Match the augmentation to the task.</p>
+<div class="donebar"><button class="donebtn" data-done="data-augmentation-as-regularisation">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="guide-for-choosing" data-num="08" data-title="Guide for choosing">
+<h2><span class="num">08</span> Guide for choosing</h2>
+<h3 id="guide-for-choosing-what-to-try-first-in-order">What to try first, in order</h3>
+<ol>
+<li><strong>Data augmentation.</strong> Almost always helps when label-preserving transformations exist (images, audio). Costs only compute.</li>
+<li><strong>Early stopping.</strong> Costs nothing. Always in production pipelines.</li>
+<li><strong>L2 weight decay</strong> (usually <span class="tex">\lambda = 10^{-4}</span>). Cheap default.</li>
+<li><strong>Batch norm</strong> — for CNNs. LayerNorm for transformers. Usually already in the architecture.</li>
+<li><strong>Dropout.</strong> Add in fully-connected heads. Rate 0.5 is a common start.</li>
+<li><strong>Reduce model size or add more data</strong> if none of the above works.</li>
+</ol>
+<h3 id="guide-for-choosing-diagnosing-overfitting">Diagnosing overfitting</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Symptom</th>
+<th style="text-align:left">Fix to try</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Training loss ↓, validation loss ↑</td>
+<td style="text-align:left">Any regulariser; more data</td>
+</tr>
+<tr>
+<td style="text-align:left">Both losses high and equal</td>
+<td style="text-align:left">Not enough capacity; train longer; tune LR</td>
+</tr>
+<tr>
+<td style="text-align:left">Training loss oscillates</td>
+<td style="text-align:left">Lower LR; add BN</td>
+</tr>
+<tr>
+<td style="text-align:left">Great validation score, poor results on new real-world data</td>
+<td style="text-align:left">Data leakage or distribution shift — not overfitting</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="guide-for-choosing-the-one-true-takeaway">The one true takeaway</h3>
+<p><strong>Overfitting is a diagnostic problem</strong> — you notice it, you diagnose it, you pick a treatment. There is no single &quot;correct amount&quot; of regularisation. Tune based on the validation curve.</p>
+<div class="donebar"><button class="donebtn" data-done="guide-for-choosing">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo" data-num="09" data-title="Runnable demo">
+<h2><span class="num">09</span> Runnable demo</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+import matplotlib.pyplot as plt
+
+# Synthetic 1D regression — noisy sine curve
+np.random.seed(0)
+n_train = 30
+x_train = np.sort(np.random.uniform(-3, 3, n_train))
+y_train = np.sin(x_train) + 0.2 * np.random.randn(n_train)
+
+x_grid = np.linspace(-3.5, 3.5, 200)
+y_true = np.sin(x_grid)
+
+# Fit polynomials of increasing degree — the &quot;capacity knob&quot;
+from numpy.polynomial import polynomial as P
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+for ax, deg in zip(axes, [1, 5, 20]):
+    coeffs = np.polyfit(x_train, y_train, deg)
+    y_fit = np.polyval(coeffs, x_grid)
+    ax.plot(x_grid, y_true, &#x27;g--&#x27;, label=&#x27;truth (sin)&#x27;, alpha=0.7)
+    ax.plot(x_grid, y_fit, &#x27;r-&#x27;, label=f&#x27;poly degree {deg}&#x27;, lw=2)
+    ax.scatter(x_train, y_train, c=&#x27;blue&#x27;, s=30, label=&#x27;training data&#x27;)
+    ax.set_ylim(-3, 3)
+    ax.set_title(f&#x27;degree {deg}   &#x27; +
+                 (&#x27;underfit&#x27; if deg == 1 else &#x27;good fit&#x27; if deg == 5 else &#x27;overfit&#x27;))
+    ax.legend(); ax.grid(alpha=0.3)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/09_regularisation-01.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-l2-regularisation-tames-the-wild-polynomial">L2 regularisation tames the wild polynomial</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">from sklearn.linear_model import Ridge
+from sklearn.preprocessing import PolynomialFeatures
+
+# Scale x into [-1, 1] first: otherwise x²⁰ is in the millions, its coefficient is tiny,
+# and the L2 penalty (which looks at coefficient sizes) barely touches it.
+poly = PolynomialFeatures(degree=20, include_bias=False)
+X_train = poly.fit_transform((x_train / 3.5).reshape(-1, 1))
+X_grid = poly.transform((x_grid / 3.5).reshape(-1, 1))
+
+fig, axes = plt.subplots(1, 4, figsize=(18, 4))
+for ax, alpha in zip(axes, [0.0, 1e-4, 1e-2, 1.0]):
+    ridge = Ridge(alpha=alpha, solver=&quot;svd&quot;).fit(X_train, y_train)   # svd: stable even for alpha = 0
+    y_fit = ridge.predict(X_grid)
+    err = np.mean((y_fit - y_true) ** 2)                               # distance from the true sine
+    ax.plot(x_grid, y_true, &#x27;g--&#x27;, label=&#x27;truth&#x27;, alpha=0.7)
+    ax.plot(x_grid, y_fit, &#x27;r-&#x27;, label=f&#x27;ridge α={alpha}&#x27;, lw=2)
+    ax.scatter(x_train, y_train, c=&#x27;blue&#x27;, s=30)
+    ax.set_ylim(-3, 3)
+    ax.set_title(f&#x27;α = {alpha}   error vs truth = {err:.3g}&#x27;)
+    ax.legend(); ax.grid(alpha=0.3)
+plt.suptitle(&#x27;Same degree-20 polynomial with different L2 strengths: none → wild, a little → good, too much → underfit&#x27;)
+plt.tight_layout(); plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/09_regularisation-02.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="runnable-demo-dropout-demonstration-hand-coded">Dropout demonstration — hand-coded</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def dropout_forward(a, p=0.5, train=True):
+    if not train:
+        return a
+    mask = (np.random.rand(*a.shape) &gt; p).astype(a.dtype)
+    return a * mask / (1 - p)          # inverted dropout — no scaling at eval
+
+a = np.ones((3, 8))
+np.random.seed(42)
+
+print(&quot;input:&quot;)
+print(a)
+print(&quot;\nwith dropout(p=0.5, train=True):&quot;)
+print(dropout_forward(a, 0.5, train=True))
+print(&quot;\nwith dropout(p=0.5, train=False) — eval mode:&quot;)
+print(dropout_forward(a, 0.5, train=False))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>input:
+[[1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1.]]
+
+with dropout(p=0.5, train=True):
+[[0. 2. 2. 2. 0. 0. 0. 2.]
+ [2. 2. 0. 2. 2. 0. 0. 0.]
+ [0. 2. 0. 0. 2. 0. 0. 0.]]
+
+with dropout(p=0.5, train=False) — eval mode:
+[[1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1.]
+ [1. 1. 1. 1. 1. 1. 1. 1.]]</pre></div></div></div>
+<h3 id="runnable-demo-batch-norm-demonstration">Batch norm demonstration</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def batch_norm(x, gamma=1.0, beta=0.0, eps=1e-5):
+    mu = x.mean(axis=0)
+    var = x.var(axis=0)
+    x_hat = (x - mu) / np.sqrt(var + eps)
+    return gamma * x_hat + beta
+
+np.random.seed(0)
+# Simulate messy pre-activations across a batch
+x = np.random.randn(64, 4) * np.array([5.0, 0.1, 3.0, 2.0]) + np.array([10, -3, 0, 5])
+
+print(&quot;BEFORE batch norm — per-feature mean and std:&quot;)
+print(f&quot;  mean = {x.mean(axis=0).round(3)}&quot;)
+print(f&quot;  std  = {x.std(axis=0).round(3)}&quot;)
+
+x_bn = batch_norm(x)
+print(&quot;\nAFTER batch norm:&quot;)
+print(f&quot;  mean = {x_bn.mean(axis=0).round(6)}&quot;)
+print(f&quot;  std  = {x_bn.std(axis=0).round(6)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>BEFORE batch norm — per-feature mean and std:
+  mean = [10.185 -3.009 -0.086  5.439]
+  std  = [5.463 0.104 2.663 1.763]
+
+AFTER batch norm:
+  mean = [-0. -0.  0. -0.]
+  std  = [1.       0.999542 0.999999 0.999998]</pre></div></div></div>
+<h3 id="runnable-demo-early-stopping-the-training-curve-youre-watching">Early stopping — the training curve you're watching</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python"># Toy simulation of typical train/val curves
+epochs = np.arange(1, 101)
+train_loss = 2.0 * np.exp(-epochs / 30) + 0.05
+val_loss = 2.0 * np.exp(-epochs / 30) + 0.05 + 0.01 * np.maximum(0, epochs - 40)
+
+# Early-stopping logic
+best_val = np.inf; patience = 10; ctr = 0; stop_epoch = None
+for e in range(len(epochs)):
+    if val_loss[e] &lt; best_val:
+        best_val = val_loss[e]; ctr = 0
+    else:
+        ctr += 1
+        if ctr &gt;= patience:
+            stop_epoch = epochs[e]; break
+
+plt.figure(figsize=(8, 5))
+plt.plot(epochs, train_loss, label=&#x27;training loss&#x27;)
+plt.plot(epochs, val_loss,   label=&#x27;validation loss&#x27;)
+if stop_epoch:
+    plt.axvline(stop_epoch, color=&#x27;red&#x27;, ls=&#x27;--&#x27;, label=f&#x27;early stop @ epoch {stop_epoch}&#x27;)
+plt.xlabel(&#x27;epoch&#x27;); plt.ylabel(&#x27;loss&#x27;)
+plt.title(&#x27;The pattern early stopping catches&#x27;)
+plt.legend(); plt.grid(alpha=0.3)
+plt.show()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/09_regularisation-03.png" alt="plot" loading="lazy"></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="08_xor_problem.html"><small>← Previous</small>The XOR Problem</a><a class="next" href="index.html"><small>Back to →</small>Training Neural Networks index</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

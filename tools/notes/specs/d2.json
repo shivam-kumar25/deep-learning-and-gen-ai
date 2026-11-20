@@ -1,0 +1,8 @@
+{"subject": "deep-learning", "out": "tools/notes/.tmp/conv/d2",
+ "pages": [
+  {"nb": "4_loss_functions/4_loss_functions.ipynb", "stem": "05_loss_functions", "kind": "note", "run": true},
+  {"nb": "5_gradient_descent/5_gradient_descent.ipynb", "stem": "06_gradient_descent", "kind": "note", "run": true},
+  {"nb": "6_backpropagation/6_backpropagation.ipynb", "stem": "07_backpropagation", "kind": "note", "run": true},
+  {"nb": "../XOR-problem/XOR_Problem.ipynb", "stem": "08_xor_problem", "kind": "note", "run": true},
+  {"nb": "7_regularization/7_regularization.ipynb", "stem": "09_regularisation", "kind": "note", "run": true}
+ ]}

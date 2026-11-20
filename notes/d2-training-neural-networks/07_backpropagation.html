@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backpropagation · Training Neural Networks · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld2-" data-page="07_backpropagation">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">Training Neural Networks</a> · <b>Backpropagation</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">📉</div><div class="eyebrow">Training · note 07</div><h1>Backpropagation</h1><div class="lead"><p>How the gradient descent algorithm actually gets its gradients. The chain rule, run backwards through the network. Every &quot;autograd&quot; implementation — PyTorch, JAX, TensorFlow — is a general-purpose version of the algorithm this note derives by hand.</p>
+</div></div>
+<section class="sec" id="the-problem-backprop-solves" data-num="01" data-title="The problem backprop solves">
+<h2><span class="num">01</span> The problem backprop solves</h2>
+<h3 id="the-problem-backprop-solves-the-one-question">The one question</h3>
+<p>Gradient descent needs to know:</p>
+<div class="tex-d">\frac{\partial L}{\partial \theta} \;\; \text{for every parameter} \; \theta</div>
+<p>For a deep network, <span class="tex">\theta</span> might be a weight buried 100 layers deep. How does <em>that</em> single number affect the loss at the end?</p>
+<h3 id="the-problem-backprop-solves-why-forward-mode-differentiation-isnt-enough">Why forward-mode differentiation isn't enough</h3>
+<p>Getting the derivatives one parameter at a time, by nudging each parameter and re-running the network (finite differences) or by forward-mode automatic differentiation, takes <span class="tex">O(P)</span> passes for <span class="tex">P</span> parameters. GPT-3 has 175 billion parameters. That is hopeless.</p>
+<p><strong>Reverse mode</strong> (backpropagation) computes <em>all</em> <span class="tex">P</span> gradients in <strong>one backward pass</strong> by re-using shared intermediate results. That pass costs about as much as one or two forward passes, whatever <span class="tex">P</span> is.</p>
+<p>That <span class="tex">175\text{B}</span>-vs-<span class="tex">1</span> ratio is why deep learning is possible at all.</p>
+<h3 id="the-problem-backprop-solves-the-high-level-recipe">The high-level recipe</h3>
+<ol>
+<li><strong>Forward pass</strong> — push input through network, compute loss. Save every intermediate activation.</li>
+<li><strong>Backward pass</strong> — starting from the loss, apply the chain rule backwards through each layer. At every parameter, multiply the incoming &quot;upstream gradient&quot; by that parameter's local Jacobian.</li>
+</ol>
+<p>Backprop is just the chain rule applied recursively. But it took the field until 1986 to popularise this simple observation.</p>
+<div class="donebar"><button class="donebtn" data-done="the-problem-backprop-solves">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="prerequisite-the-chain-rule" data-num="02" data-title="Prerequisite — the chain rule">
+<h2><span class="num">02</span> Prerequisite — the chain rule</h2>
+<h3 id="prerequisite-the-chain-rule-the-one-variable-case">The one-variable case</h3>
+<p>If <span class="tex">y = f(x)</span> and <span class="tex">z = g(y)</span>, then <span class="tex">z = g(f(x))</span> and:</p>
+<div class="tex-d">\frac{dz}{dx} \;=\; \frac{dz}{dy} \cdot \frac{dy}{dx}</div>
+<p><strong>Cascade of local derivatives</strong> — the derivative of an outer function times the derivative of the inner one.</p>
+<h3 id="prerequisite-the-chain-rule-longer-chains">Longer chains</h3>
+<p>For <span class="tex">x \to y \to z \to w</span>:</p>
+<div class="tex-d">\frac{dw}{dx} \;=\; \frac{dw}{dz} \cdot \frac{dz}{dy} \cdot \frac{dy}{dx}</div>
+<p>Each layer contributes one local derivative. Backprop propagates the product from right to left — from the loss back to <span class="tex">x</span>.</p>
+<h3 id="prerequisite-the-chain-rule-multiple-variables">Multiple variables</h3>
+<figure class="fig"><img src="images/out/07_backpropagation-01.png" alt="x reaches the loss along two paths, through y₁ and through y₂. The chain rule gives one product per path, and ∂L/∂x is their sum." loading="lazy"><figcaption>x reaches the loss along two paths, through y₁ and through y₂. The chain rule gives one product per path, and ∂L/∂x is their sum.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
+
+fig, ax = plt.subplots(figsize=(8, 3.6))
+nodes = {&quot;x&quot;: (0, 0), &quot;y₁&quot;: (2.6, 1), &quot;y₂&quot;: (2.6, -1), &quot;L&quot;: (5.2, 0)}
+for k, (a, b) in nodes.items():
+    ax.add_patch(Circle((a, b), 0.38, fc=&quot;#ede9fe&quot; if k not in (&quot;x&quot;, &quot;L&quot;) else (&quot;#dbeafe&quot; if k == &quot;x&quot; else &quot;#fee2e2&quot;), ec=&quot;#374151&quot;))
+    ax.text(a, b, k, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=12)
+def arrow(a, b, lab, c, dy):
+    (x0, y0), (x1, y1) = nodes[a], nodes[b]
+    ax.annotate(&quot;&quot;, (x1 - 0.38 * (x1 - x0) / 2.8, y1 - 0.38 * (y1 - y0) / 2.8), (x0 + 0.38 * (x1 - x0) / 2.8, y0 + 0.38 * (y1 - y0) / 2.8),
+                arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=c, lw=1.6))
+    ax.text((x0 + x1) / 2, (y0 + y1) / 2 + dy, lab, ha=&quot;center&quot;, fontsize=10, color=c)
+arrow(&quot;x&quot;, &quot;y₁&quot;, &quot;∂y₁/∂x&quot;, &quot;#7c3aed&quot;, 0.22); arrow(&quot;y₁&quot;, &quot;L&quot;, &quot;∂L/∂y₁&quot;, &quot;#7c3aed&quot;, 0.22)
+arrow(&quot;x&quot;, &quot;y₂&quot;, &quot;∂y₂/∂x&quot;, &quot;#059669&quot;, -0.4); arrow(&quot;y₂&quot;, &quot;L&quot;, &quot;∂L/∂y₂&quot;, &quot;#059669&quot;, -0.4)
+ax.text(2.6, -2.0, &quot;∂L/∂x  =  ∂L/∂y₁ · ∂y₁/∂x   +   ∂L/∂y₂ · ∂y₂/∂x&quot;, ha=&quot;center&quot;, fontsize=11)
+ax.set_xlim(-0.6, 5.8); ax.set_ylim(-2.4, 1.7); ax.set_aspect(&quot;equal&quot;); ax.axis(&quot;off&quot;)
+plt.show()</pre></div></details>
+<p>If <span class="tex">L</span> depends on <span class="tex">x</span> through multiple intermediate variables:</p>
+<div class="tex-d">\frac{\partial L}{\partial x} \;=\; \sum_{k} \frac{\partial L}{\partial y_k} \cdot \frac{\partial y_k}{\partial x}</div>
+<p>Summed over every path from <span class="tex">x</span> to <span class="tex">L</span>. This is the version that matters for neural networks — a weight in an early layer affects the loss through many downstream neurons.</p>
+<div class="donebar"><button class="donebtn" data-done="prerequisite-the-chain-rule">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="scalar-case-one-variable-hand-worked" data-num="03" data-title="Scalar case — one variable, hand-worked">
+<h2><span class="num">03</span> Scalar case — one variable, hand-worked</h2>
+<figure class="fig"><img src="images/out/07_backpropagation-02.png" alt="The example below as a graph. The forward pass (green, above each arrow) computes the values left to right; the backward pass (red, below) carries ∂L/∂(node) right to left, multiplying by one local derivative per step." loading="lazy"><figcaption>The example below as a graph. The forward pass (green, above each arrow) computes the values left to right; the backward pass (red, below) carries ∂L/∂(node) right to left, multiplying by one local derivative per step.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+fig, ax = plt.subplots(figsize=(10, 3.4))
+boxes = [(&quot;w = 3&quot;, 0, 1.0), (&quot;x = 2&quot;, 0, 0.0), (&quot;b = 1&quot;, 0, -1.0), (&quot;z = wx + b&quot;, 2.6, 0), (&quot;a = z²&quot;, 5.2, 0), (&quot;L = ½(a − t)²&quot;, 7.8, 0)]
+for lab, x, y in boxes:
+    ax.add_patch(FancyBboxPatch((x - 0.75, y - 0.28), 1.5, 0.56, boxstyle=&quot;round,pad=0.04&quot;, fc=&quot;#f3f4f6&quot;, ec=&quot;#374151&quot;))
+    ax.text(x, y, lab, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=9.5)
+for y, g in [(1.0, &quot;∂L/∂w = 126·x = 252&quot;), (0.0, &quot;∂L/∂x = 126·w = 378&quot;), (-1.0, &quot;∂L/∂b = 126·1 = 126&quot;)]:
+    ax.annotate(&quot;&quot;, (1.85, 0.05 * y), (0.77, y), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#6b7280&quot;))
+    ax.text(1.0, y - 0.45 if y &lt; 1 else y + 0.35, g, fontsize=8.5, color=&quot;#dc2626&quot;)
+for x0, x1, fwd, bwd in [(2.6, 5.2, &quot;z = 7&quot;, &quot;∂L/∂z = 9 · 2z = 126&quot;), (5.2, 7.8, &quot;a = 49&quot;, &quot;∂L/∂a = a − t = 9&quot;)]:
+    ax.annotate(&quot;&quot;, (x1 - 0.77, 0), (x0 + 0.77, 0), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#374151&quot;))
+    ax.text((x0 + x1) / 2, 0.15, fwd, ha=&quot;center&quot;, fontsize=9, color=&quot;#059669&quot;)
+    ax.text((x0 + x1) / 2, -0.38, bwd, ha=&quot;center&quot;, fontsize=8.5, color=&quot;#dc2626&quot;)
+ax.text(7.8, 0.55, &quot;t = 40,  L = 40.5&quot;, ha=&quot;center&quot;, fontsize=9, color=&quot;#059669&quot;)
+ax.set_xlim(-0.9, 8.8); ax.set_ylim(-1.6, 1.6); ax.axis(&quot;off&quot;)
+plt.show()</pre></div></details>
+<h3 id="scalar-case-one-variable-hand-worked-setup">Setup</h3>
+<p>Consider a one-neuron &quot;network&quot;:</p>
+<ul>
+<li>Input: <span class="tex">x = 2</span>.</li>
+<li>Weight: <span class="tex">w = 3</span>, bias: <span class="tex">b = 1</span>.</li>
+<li>Pre-activation: <span class="tex">z = w x + b = 7</span>.</li>
+<li>Activation: <span class="tex">a = z^2 = 49</span>.</li>
+<li>Target: <span class="tex">t = 40</span>.</li>
+<li>Loss: <span class="tex">L = \frac{1}{2} (a - t)^2 = \frac{1}{2} (49 - 40)^2 = 40.5</span>.</li>
+</ul>
+<p>Question: what is <span class="tex">\partial L / \partial w</span>?</p>
+<h3 id="scalar-case-one-variable-hand-worked-forward-pass-cache-the-intermediates">Forward pass — cache the intermediates</h3>
+<div class="codewrap"><pre class="code" data-lang="text">x = 2
+z = w * x + b = 3 * 2 + 1 = 7
+a = z ** 2 = 49
+L = 0.5 * (a - t) ** 2 = 40.5</pre></div>
+<h3 id="scalar-case-one-variable-hand-worked-backward-pass-apply-the-chain-rule">Backward pass — apply the chain rule</h3>
+<p>Start from the loss and work backwards, one operation at a time:</p>
+<ul>
+<li><span class="tex">\frac{\partial L}{\partial L} = 1</span></li>
+<li><span class="tex">\frac{\partial L}{\partial a} = a - t = 49 - 40 = 9</span></li>
+<li><span class="tex">\frac{\partial L}{\partial z} = \frac{\partial L}{\partial a} \cdot \frac{\partial a}{\partial z} = 9 \cdot 2z = 9 \cdot 14 = 126</span></li>
+<li><span class="tex">\frac{\partial L}{\partial w} = \frac{\partial L}{\partial z} \cdot \frac{\partial z}{\partial w} = 126 \cdot x = 126 \cdot 2 = 252</span></li>
+</ul>
+<h3 id="scalar-case-one-variable-hand-worked-verify-numerically">Verify numerically</h3>
+<p>Nudge <span class="tex">w</span> by <span class="tex">\epsilon = 10^{-4}</span> and see how <span class="tex">L</span> changes:</p>
+<ul>
+<li><span class="tex">L(w + \epsilon) = 0.5 \cdot ((3.0001 \cdot 2 + 1)^2 - 40)^2 \approx 40.525</span></li>
+<li><span class="tex">\frac{L(w + \epsilon) - L(w)}{\epsilon} \approx 252</span></li>
+</ul>
+<p>Matches ✓. The algorithm works.</p>
+<h3 id="scalar-case-one-variable-hand-worked-a-slightly-bigger-example">A slightly bigger example</h3>
+<p>Two inputs, a sigmoid and a squared error: <span class="tex">x_1 = 1</span>, <span class="tex">x_2 = 2</span>, <span class="tex">w_1 = 0.5</span>, <span class="tex">w_2 = -1</span>, <span class="tex">b = 1</span>, target <span class="tex">t = 1</span>.</p>
+<p><strong>Forward:</strong></p>
+<ul>
+<li><span class="tex">z = w_1 x_1 + w_2 x_2 + b = 0.5 - 2 + 1 = -0.5</span></li>
+<li><span class="tex">a = \sigma(z) = 1 / (1 + e^{0.5}) \approx 0.3775</span></li>
+<li><span class="tex">L = \tfrac12 (a - t)^2 = \tfrac12 (0.6225)^2 \approx 0.1937</span></li>
+</ul>
+<p><strong>Backward</strong>, one local derivative per step:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Quantity</th>
+<th style="text-align:left">Chain</th>
+<th style="text-align:center">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><span class="tex">\partial L / \partial a</span></td>
+<td style="text-align:left"><span class="tex">a - t</span></td>
+<td style="text-align:center"><span class="tex">-0.6225</span></td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="tex">\partial L / \partial z</span></td>
+<td style="text-align:left"><span class="tex">\partial L/\partial a \cdot \sigma&#x27;(z)</span>, with <span class="tex">\sigma&#x27;(z) = a(1 - a) = 0.2350</span></td>
+<td style="text-align:center"><span class="tex">-0.1463</span></td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="tex">\partial L / \partial w_1</span></td>
+<td style="text-align:left"><span class="tex">\partial L/\partial z \cdot x_1</span></td>
+<td style="text-align:center"><span class="tex">-0.1463</span></td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="tex">\partial L / \partial w_2</span></td>
+<td style="text-align:left"><span class="tex">\partial L/\partial z \cdot x_2</span></td>
+<td style="text-align:center"><span class="tex">-0.2926</span></td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="tex">\partial L / \partial b</span></td>
+<td style="text-align:left"><span class="tex">\partial L/\partial z \cdot 1</span></td>
+<td style="text-align:center"><span class="tex">-0.1463</span></td>
+</tr>
+</tbody>
+</table></div>
+<p>All three gradients are negative, so gradient descent <em>raises</em> <span class="tex">w_1</span>, <span class="tex">w_2</span> and <span class="tex">b</span>, which raises <span class="tex">z</span> and pushes <span class="tex">a</span> toward the target 1. <span class="tex">w_2</span> gets twice the push of <span class="tex">w_1</span> because its input is twice as large.</p>
+<p>PyTorch's autograd builds the same graph and gets the same numbers. Change any value and run it again:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+
+x = torch.tensor([1.0, 2.0])
+w = torch.tensor([0.5, -1.0], requires_grad=True)
+b = torch.tensor(1.0, requires_grad=True)
+t = 1.0
+
+z = w @ x + b
+a = torch.sigmoid(z)
+L = 0.5 * (a - t) ** 2
+L.backward()                       # the backward pass, done for you
+
+print(f&quot;z = {z.item():.4f}   a = {a.item():.4f}   L = {L.item():.4f}&quot;)
+print(&quot;dL/dw =&quot;, w.grad.numpy().round(4), &quot;  dL/db =&quot;, round(b.grad.item(), 4))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>z = -0.5000   a = 0.3775   L = 0.1937
+dL/dw = [-0.1463 -0.2926]   dL/db = -0.1463</pre></div></div></div>
+<p>Every backprop derivation is this pattern, however tall the stack of operations gets.</p>
+<div class="donebar"><button class="donebtn" data-done="scalar-case-one-variable-hand-worked">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="backprop-in-a-multi-layer-perceptron" data-num="04" data-title="Backprop in a multi-layer perceptron">
+<h2><span class="num">04</span> Backprop in a multi-layer perceptron</h2>
+<p><em>Extending the scalar case to real networks. Same chain rule, just with vectors and matrices.</em></p>
+<h3 id="backprop-in-a-multi-layer-perceptron-notation">Notation</h3>
+<p>For layer <span class="tex">\ell = 1, \ldots, L</span>:</p>
+<ul>
+<li>Weights: <span class="tex">W^{[\ell]}</span>, biases: <span class="tex">\mathbf{b}^{[\ell]}</span></li>
+<li>Pre-activation: <span class="tex">\mathbf{z}^{[\ell]} = W^{[\ell]} \mathbf{a}^{[\ell-1]} + \mathbf{b}^{[\ell]}</span></li>
+<li>Activation: <span class="tex">\mathbf{a}^{[\ell]} = g^{[\ell]}(\mathbf{z}^{[\ell]})</span></li>
+<li>Input: <span class="tex">\mathbf{a}^{[0]} = \mathbf{x}</span></li>
+<li>Output: <span class="tex">\hat{\mathbf{y}} = \mathbf{a}^{[L]}</span></li>
+</ul>
+<h3 id="backprop-in-a-multi-layer-perceptron-the-four-equations-of-backprop">The four equations of backprop</h3>
+<p>Define <span class="tex">\boldsymbol{\delta}^{[\ell]} = \partial L / \partial \mathbf{z}^{[\ell]}</span> (the &quot;error&quot; at layer <span class="tex">\ell</span>). Then:</p>
+<p><strong>1. Output-layer error:</strong></p>
+<div class="tex-d">\boldsymbol{\delta}^{[L]} \;=\; \nabla_{\mathbf{a}^{[L]}} L \;\odot\; g&#x27;\!\bigl(\mathbf{z}^{[L]}\bigr)</div>
+<p><strong>2. Error at any hidden layer</strong> (propagate from <span class="tex">\ell+1</span> back to <span class="tex">\ell</span>):</p>
+<div class="tex-d">\boldsymbol{\delta}^{[\ell]} \;=\; \bigl(W^{[\ell+1]}\bigr)^T \boldsymbol{\delta}^{[\ell+1]} \;\odot\; g&#x27;\!\bigl(\mathbf{z}^{[\ell]}\bigr)</div>
+<p><strong>3. Weight gradient:</strong></p>
+<div class="tex-d">\frac{\partial L}{\partial W^{[\ell]}} \;=\; \boldsymbol{\delta}^{[\ell]} \, \bigl(\mathbf{a}^{[\ell-1]}\bigr)^T</div>
+<p><strong>4. Bias gradient:</strong></p>
+<div class="tex-d">\frac{\partial L}{\partial \mathbf{b}^{[\ell]}} \;=\; \boldsymbol{\delta}^{[\ell]}</div>
+<p>That's the whole algorithm. Every deep-learning framework's autograd computes exactly these.</p>
+<h3 id="backprop-in-a-multi-layer-perceptron-the-algorithm-as-pseudocode">The algorithm as pseudocode</h3>
+<div class="codewrap"><pre class="code" data-lang="text">1. Forward: compute a[0], z[1], a[1], ..., z[L], a[L] = y_hat.
+2. Compute δ[L] from output-layer error.
+3. For ℓ = L-1 down to 1: compute δ[ℓ] via equation (2).
+4. For every layer ℓ: compute ∂L/∂W[ℓ] and ∂L/∂b[ℓ] via equations (3, 4).
+5. Update parameters: W[ℓ] ← W[ℓ] - η · ∂L/∂W[ℓ] (see note 06).</pre></div>
+<p>Cache the activations from step 1 — they're needed in steps 3 and 4.</p>
+<div class="donebar"><button class="donebtn" data-done="backprop-in-a-multi-layer-perceptron">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-full-derivation-for-one-layer" data-num="05" data-title="The full derivation for one layer">
+<h2><span class="num">05</span> The full derivation for one layer</h2>
+<h3 id="the-full-derivation-for-one-layer-the-single-weight">The single weight</h3>
+<p>For weight <span class="tex">W^{[\ell]}_{ij}</span> connecting neuron <span class="tex">j</span> in layer <span class="tex">\ell-1</span> to neuron <span class="tex">i</span> in layer <span class="tex">\ell</span>:</p>
+<div class="tex-d">\frac{\partial L}{\partial W^{[\ell]}_{ij}} \;=\; \frac{\partial L}{\partial z^{[\ell]}_i} \cdot \frac{\partial z^{[\ell]}_i}{\partial W^{[\ell]}_{ij}}</div>
+<p>The second term is easy:</p>
+<div class="tex-d">\frac{\partial z^{[\ell]}_i}{\partial W^{[\ell]}_{ij}} \;=\; a^{[\ell-1]}_j</div>
+<p>(since <span class="tex">z^{[\ell]}_i = \sum_j W^{[\ell]}_{ij} a^{[\ell-1]}_j + b^{[\ell]}_i</span>).</p>
+<p>So:</p>
+<div class="tex-d">\frac{\partial L}{\partial W^{[\ell]}_{ij}} \;=\; \delta^{[\ell]}_i \cdot a^{[\ell-1]}_j</div>
+<p>Stacked into a matrix: <span class="tex">\partial L / \partial W^{[\ell]} = \boldsymbol{\delta}^{[\ell]} \, (\mathbf{a}^{[\ell-1]})^T</span> — exactly equation (3) above.</p>
+<h3 id="the-full-derivation-for-one-layer-how-boldsymboldeltaell-is-computed-from-boldsymboldeltaell1">How <span class="tex">\boldsymbol{\delta}^{[\ell]}</span> is computed from <span class="tex">\boldsymbol{\delta}^{[\ell+1]}</span></h3>
+<p>Each <span class="tex">z^{[\ell]}_i</span> affects the loss through every <span class="tex">z^{[\ell+1]}_k</span>:</p>
+<div class="tex-d">\delta^{[\ell]}_i \;=\; \frac{\partial L}{\partial z^{[\ell]}_i} \;=\; \sum_k \frac{\partial L}{\partial z^{[\ell+1]}_k} \cdot \frac{\partial z^{[\ell+1]}_k}{\partial a^{[\ell]}_i} \cdot \frac{\partial a^{[\ell]}_i}{\partial z^{[\ell]}_i}</div>
+<div class="tex-d">= \; \sum_k \delta^{[\ell+1]}_k \cdot W^{[\ell+1]}_{ki} \cdot g&#x27;(z^{[\ell]}_i)</div>
+<p>In vector form: <span class="tex">\boldsymbol{\delta}^{[\ell]} = (W^{[\ell+1]})^T \boldsymbol{\delta}^{[\ell+1]} \odot g&#x27;(\mathbf{z}^{[\ell]})</span> — equation (2).</p>
+<p>That's the entire derivation. Everything else is bookkeeping.</p>
+<div class="donebar"><button class="donebtn" data-done="the-full-derivation-for-one-layer">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="vanishing-exploding-gradients" data-num="06" data-title="Vanishing &amp; exploding gradients">
+<h2><span class="num">06</span> Vanishing &amp; exploding gradients</h2>
+<p><em>When backprop's recursive multiplications go wrong.</em></p>
+<h3 id="vanishing-exploding-gradients-vanishing-gradients">Vanishing gradients</h3>
+<p>Every layer contributes a factor of <span class="tex">g&#x27;(\mathbf{z})</span> to the backward chain. For sigmoid / tanh, <span class="tex">|g&#x27;(z)| \leq 0.25</span> and <span class="tex">\leq 1</span> respectively. In a 20-layer network, the gradient reaching layer 1 is multiplied by ~<span class="tex">0.25^{20} \approx 10^{-12}</span> — essentially zero.</p>
+<p><strong>Symptoms:</strong> early layers barely change during training. Deep networks refuse to train.</p>
+<p><strong>Fixes</strong> (developed over the last 15 years):</p>
+<ul>
+<li><strong>ReLU family</strong> — gradient is 1 for positive inputs, doesn't shrink.</li>
+<li><strong>Better initialisation</strong> — Kaiming / Xavier — choose the weights' variance so activations and gradients keep roughly the same size from layer to layer.</li>
+<li><strong>Batch normalisation</strong> — keeps pre-activations centred, avoids saturation.</li>
+<li><strong>Residual connections</strong> — a shortcut from earlier layers, so gradients have a path that doesn't multiply through activations.</li>
+</ul>
+<h3 id="vanishing-exploding-gradients-exploding-gradients">Exploding gradients</h3>
+<p>The opposite pathology — the product of many terms <span class="tex">&gt; 1</span> grows without bound.</p>
+<p><strong>Symptoms:</strong> loss becomes NaN. Weights hit ±∞.</p>
+<p><strong>Fixes:</strong></p>
+<ul>
+<li><strong>Gradient clipping</strong> — cap <span class="tex">\|\nabla\|</span> at some threshold (typically 1 or 5).</li>
+<li><strong>Better initialisation</strong> — same reason as above.</li>
+<li><strong>Lower learning rate</strong> — stops the diverging trajectory.</li>
+</ul>
+<h3 id="vanishing-exploding-gradients-why-rnns-suffered">Why RNNs suffered</h3>
+<p>RNNs use the same weights at every time step — the chain of multiplications is even more extreme. Vanishing/exploding gradients are why plain RNNs failed to learn long-range dependencies, and why LSTM/GRU (with gated pathways) replaced them.</p>
+<div class="donebar"><button class="donebtn" data-done="vanishing-exploding-gradients">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="modern-autograd-how-pytorch-does-it" data-num="07" data-title="Modern autograd — how PyTorch does it">
+<h2><span class="num">07</span> Modern autograd — how PyTorch does it</h2>
+<p><em>You almost never write backprop by hand. Frameworks trace the forward pass and generate the backward pass automatically.</em></p>
+<h3 id="modern-autograd-how-pytorch-does-it-the-core-trick-the-computational-graph">The core trick — the computational graph</h3>
+<p>Every tensor operation records:</p>
+<ul>
+<li>Its inputs.</li>
+<li>The operation performed.</li>
+<li>The output.</li>
+</ul>
+<p>Together this builds a <strong>directed acyclic graph</strong> — the &quot;computational graph&quot; — representing the whole forward computation.</p>
+<h3 id="modern-autograd-how-pytorch-does-it-backward-pass-on-the-graph">Backward pass on the graph</h3>
+<p>When you call <code>loss.backward()</code>:</p>
+<ol>
+<li>Start with <code>∂L/∂L = 1</code> at the loss node.</li>
+<li>Walk backwards through the graph in <strong>reverse topological order</strong>.</li>
+<li>At each node, apply the operation's known local Jacobian to the incoming gradient.</li>
+<li>Accumulate gradients at leaf tensors (the parameters).</li>
+</ol>
+<p>The framework provides local backward rules for every primitive op (matrix multiply, ReLU, softmax, etc.). Your model composes these; autograd stitches the backward pass together.</p>
+<h3 id="modern-autograd-how-pytorch-does-it-practical-implications">Practical implications</h3>
+<ul>
+<li>You focus on the <strong>forward pass only</strong>. Backward is automatic.</li>
+<li>Any composition of differentiable operations works — no need to derive by hand.</li>
+<li>The forward pass caches activations — memory can be tight for very deep models. <code>torch.utils.checkpoint</code> trades compute for memory.</li>
+</ul>
+<h3 id="modern-autograd-how-pytorch-does-it-when-to-still-know-backprop-by-hand">When to still know backprop by hand</h3>
+<ul>
+<li><strong>Debugging exploding/vanishing gradients</strong> — you need to know where the pathology comes from.</li>
+<li><strong>Custom operations</strong> — you may need to hand-write a backward rule.</li>
+<li><strong>Understanding the mechanics</strong> — helps you reason about architecture choices (why residual connections help, why batch norm smooths training).</li>
+</ul>
+<p>The PyTorch notes (D3) use autograd for everything from here on.</p>
+<div class="donebar"><button class="donebtn" data-done="modern-autograd-how-pytorch-does-it">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="runnable-demo-hand-backprop-matches-autograd" data-num="08" data-title="Runnable demo — hand backprop matches autograd">
+<h2><span class="num">08</span> Runnable demo — hand backprop matches autograd</h2>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+
+# --- Hand-coded MLP with manual backprop ---
+np.random.seed(0)
+X = np.array([[0, 0], [0, 1], [1, 0], [1, 1]], dtype=np.float32)
+y = np.array([[0], [1], [1], [0]], dtype=np.float32)      # XOR
+
+# Init a 2-4-1 network
+W1 = np.random.randn(4, 2) * 0.5; b1 = np.zeros((4, 1))
+W2 = np.random.randn(1, 4) * 0.5; b2 = np.zeros((1, 1))
+
+def sigmoid(z): return 1 / (1 + np.exp(-z))
+
+# One forward+backward pass
+X_col = X.T                          # (2, 4)
+y_col = y.T                          # (1, 4)
+
+# Forward
+Z1 = W1 @ X_col + b1                 # (4, 4)
+A1 = sigmoid(Z1)                     # (4, 4)
+Z2 = W2 @ A1 + b2                    # (1, 4)
+A2 = sigmoid(Z2)                     # (1, 4)
+loss = 0.5 * np.mean((A2 - y_col) ** 2)
+print(f&quot;loss (hand):  {loss:.6f}&quot;)
+
+# Backward — following the four backprop equations
+dA2 = (A2 - y_col) / X.shape[0]           # dL/dA2 (MSE derivative)
+dZ2 = dA2 * A2 * (1 - A2)                 # * sigmoid&#x27;
+dW2 = dZ2 @ A1.T                          # (1, 4)
+db2 = dZ2.sum(axis=1, keepdims=True)
+
+dA1 = W2.T @ dZ2                          # (4, 4)
+dZ1 = dA1 * A1 * (1 - A1)
+dW1 = dZ1 @ X_col.T                       # (4, 2)
+db1 = dZ1.sum(axis=1, keepdims=True)
+
+print(f&quot;hand ∂L/∂W1[0,0] = {dW1[0, 0]:.6f}&quot;)
+print(f&quot;hand ∂L/∂W2[0,1] = {dW2[0, 1]:.6f}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>loss (hand):  0.133730
+hand ∂L/∂W1[0,0] = -0.000142
+hand ∂L/∂W2[0,1] = 0.019675</pre></div></div></div>
+<h3 id="runnable-demo-hand-backprop-matches-autograd-same-computation-with-pytorch-autograd">Same computation with PyTorch autograd</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch   # the same network and weights as above, with autograd doing the backward pass
+
+Xt = torch.tensor(X.T, dtype=torch.float32)
+yt = torch.tensor(y.T, dtype=torch.float32)
+
+W1t = torch.tensor(W1, dtype=torch.float32, requires_grad=True)
+b1t = torch.tensor(b1, dtype=torch.float32, requires_grad=True)
+W2t = torch.tensor(W2, dtype=torch.float32, requires_grad=True)
+b2t = torch.tensor(b2, dtype=torch.float32, requires_grad=True)
+
+Z1t = W1t @ Xt + b1t
+A1t = torch.sigmoid(Z1t)
+Z2t = W2t @ A1t + b2t
+A2t = torch.sigmoid(Z2t)
+loss_t = 0.5 * ((A2t - yt) ** 2).mean()
+
+print(f&quot;loss (torch): {loss_t.item():.6f}&quot;)
+loss_t.backward()
+
+print(f&quot;torch ∂L/∂W1[0,0] = {W1t.grad[0, 0].item():.6f}&quot;)
+print(f&quot;torch ∂L/∂W2[0,1] = {W2t.grad[0, 1].item():.6f}&quot;)
+
+match_W1 = np.allclose(dW1, W1t.grad.numpy(), atol=1e-6)
+match_W2 = np.allclose(dW2, W2t.grad.numpy(), atol=1e-6)
+print(f&quot;\nhand and torch agree on ∂L/∂W1: {match_W1}&quot;)
+print(f&quot;hand and torch agree on ∂L/∂W2: {match_W2}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>loss (torch): 0.133730
+torch ∂L/∂W1[0,0] = -0.000142
+torch ∂L/∂W2[0,1] = 0.019675
+
+hand and torch agree on ∂L/∂W1: True
+hand and torch agree on ∂L/∂W2: True</pre></div></div></div>
+<h3 id="runnable-demo-hand-backprop-matches-autograd-numerical-gradient-check">Numerical gradient check</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">def loss_hand(W1_p, b1_p, W2_p, b2_p):
+    Z1 = W1_p @ X_col + b1_p
+    A1 = sigmoid(Z1)
+    Z2 = W2_p @ A1 + b2_p
+    A2 = sigmoid(Z2)
+    return 0.5 * np.mean((A2 - y_col) ** 2)
+
+# Numerically differentiate ∂L/∂W1[0,0]
+eps = 1e-5
+W1p = W1.copy(); W1p[0, 0] += eps
+W1m = W1.copy(); W1m[0, 0] -= eps
+grad_num = (loss_hand(W1p, b1, W2, b2) - loss_hand(W1m, b1, W2, b2)) / (2 * eps)
+print(f&quot;numerical grad ∂L/∂W1[0,0] = {grad_num:.6f}&quot;)
+print(f&quot;analytical grad             = {dW1[0, 0]:.6f}&quot;)
+print(f&quot;match: {np.isclose(grad_num, dW1[0, 0], atol=1e-4)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>numerical grad ∂L/∂W1[0,0] = -0.000142
+analytical grad             = -0.000142
+match: True</pre></div></div></div>
+<h3 id="runnable-demo-hand-backprop-matches-autograd-the-takeaway">The takeaway</h3>
+<p>Backprop derived by hand, PyTorch's autograd, and numerical differentiation all give the same gradient. That's the sanity check every DL library implements to catch bugs.</p>
+<p>You'll never write hand backprop for a real model. But knowing <em>what</em> autograd does when you call <code>.backward()</code> is the difference between magic-that-works and understanding-what-you-built.</p>
+<div class="donebar"><button class="donebtn" data-done="runnable-demo-hand-backprop-matches-autograd">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="06_gradient_descent.html"><small>← Previous</small>Gradient Descent</a><a class="next" href="08_xor_problem.html"><small>Next →</small>The XOR Problem</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

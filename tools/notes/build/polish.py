@@ -9,6 +9,7 @@ Slide images follow tools/notes/specs/images.json: "keep" (copied, captioned), "
 Front matter gets eyebrow, blurb (the section titles) and lead (the italic opening line).
 """
 import json, os, re, shutil, sys
+from urllib.parse import unquote
 
 spec = json.load(open(sys.argv[1], encoding="utf-8"))
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -21,7 +22,7 @@ FIG = re.compile(r'(?:<div align="center">\s*)?<figure><img src="(?P<src>[^"]+)"
 
 
 def figure(m, stem):
-    src, alt, cap = m.group("src"), m.group("alt"), (m.group("cap") or "").strip()
+    src, alt, cap = unquote(m.group("src")), m.group("alt"), (m.group("cap") or "").strip()
     name = os.path.basename(src)
     what = DECIDE.get(name)
     if what is None:
@@ -54,7 +55,7 @@ for stem, meta in spec["pages"].items():
     for old, new in spec.get("renumber", {}).items():
         body = re.sub(rf"\b{old}\b", new, body)
     body = re.sub(r"\bthis notebook\b", "this note", body); body = re.sub(r"\bThis notebook\b", "This note", body)
-    lead = re.sub(r"\b[Tt]his notebook\b", "this note", lead) if False else lead
+    lead = re.sub(r"\bThis notebook\b", "This note", re.sub(r"\bthis notebook\b", "this note", lead))
     body = re.sub(r"\[`\.\./[^`\]]*`\]\(((?:\.\./[\w-]+/)?(\d\d)_[\w-]+\.html(?:#[\w-]+)?)\)", lambda m: f"[note {m.group(2)}]({m.group(1)})", body)
     body = re.sub(r"\n{3,}", "\n\n", body).strip() + "\n"
     heads = [re.sub(r"\s*\{#.*\}$", "", h) for h in re.findall(r"^## (.+)$", body, re.M)]

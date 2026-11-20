@@ -28,6 +28,7 @@ Sign up (the account lives in `data/studyloom.db` on this computer), open a note
 
 - Note sources: `tools/notes/src/<subject>/NN_*.md`. Build one subject with
   `tools/notes/build/build_dl.sh d1-neural-network-foundations`, the home page with `tools/notes/build/build_dl.sh home`.
-  Every cell is run while building, so the outputs in the pages are real.
+  Every cell is run while building, so the outputs in the pages are real. After adding or renaming notes, run
+  `npm run index` so the app's catalogue and search pick them up (the server only indexes an empty database).
 - Tests: `npm test` (API and live kernel), `node tools/notes/test/kernel-e2e.mjs http://127.0.0.1:4300 d1` (every cell of
   the notes on the running app's kernel).
