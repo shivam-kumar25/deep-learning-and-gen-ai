@@ -1,0 +1,20 @@
+{
+ "conv": "tools/notes/.tmp/conv/d3",
+ "src": "tools/notes/src/d3-pytorch",
+ "notes_dir": "notes/d3-pytorch",
+ "img_root": "pytorch",
+ "eyebrow": "PyTorch",
+ "badge": "🔥",
+ "pages": {
+  "10_tensors": {
+   "number": "10"
+  },
+  "11_autograd_numpy_gpu": {
+   "number": "11"
+  },
+  "12_pytorch_workflow": {
+   "number": "12"
+  }
+ },
+ "renumber": {}
+}

@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The PyTorch Workflow · PyTorch · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld3-" data-page="12_pytorch_workflow">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">PyTorch</a> · <b>The PyTorch Workflow</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔥</div><div class="eyebrow">PyTorch · note 12</div><h1>The PyTorch Workflow</h1><div class="lead"><p>The six steps every PyTorch project follows, done once end to end on a problem small enough to see completely: learn a straight line. Data and DataLoaders, an nn.Module, a loss and an optimiser, the training and testing loops, saving and loading, and the same workflow again on the GPU with nn.Linear. Every later model in the course is this loop with a bigger network.</p>
+</div></div>
+<section class="sec" id="the-workflow-at-a-glance" data-num="01" data-title="The workflow at a glance">
+<h2><span class="num">01</span> The workflow at a glance</h2>
+<figure class="fig"><img src="images/out/12_pytorch_workflow-01.png" alt="The PyTorch workflow. Steps 1 to 5 repeat as you experiment: change the data, the model or the training settings and train again. Step 6 keeps the result." loading="lazy"><figcaption>The PyTorch workflow. Steps 1 to 5 repeat as you experiment: change the data, the model or the training settings and train again. Step 6 keeps the result.</figcaption></figure>
+<details class="figcode"><summary>Python code for this figure</summary><div class="codewrap pyc"><pre class="code" data-lang="python">import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
+
+steps = [(&quot;1  Data&quot;, &quot;tensors, train/test split,\nDataset + DataLoader&quot;), (&quot;2  Model&quot;, &quot;nn.Module with a\nforward() method&quot;),
+         (&quot;3  Loss + optimiser&quot;, &quot;what to minimise,\nhow to step&quot;), (&quot;4  Train&quot;, &quot;forward → loss → zero_grad\n→ backward → step&quot;),
+         (&quot;5  Evaluate&quot;, &quot;model.eval(),\ntorch.inference_mode()&quot;), (&quot;6  Save / load&quot;, &quot;torch.save(state_dict),\nload_state_dict&quot;)]
+fig, ax = plt.subplots(figsize=(14, 3.1))
+for i, (head, body) in enumerate(steps):
+    x = i * 2.35
+    ax.add_patch(FancyBboxPatch((x, 0), 2.05, 1.5, boxstyle=&quot;round,pad=0.05&quot;, fc=&quot;#eef2ff&quot; if i &lt; 5 else &quot;#dcfce7&quot;, ec=&quot;#4338ca&quot; if i &lt; 5 else &quot;#15803d&quot;))
+    ax.text(x + 1.025, 1.18, head, ha=&quot;center&quot;, fontsize=10, weight=&quot;bold&quot;)
+    ax.text(x + 1.025, 0.55, body, ha=&quot;center&quot;, va=&quot;center&quot;, fontsize=7.6, family=&quot;monospace&quot;)
+    if i &lt; 5:
+        ax.annotate(&quot;&quot;, (x + 2.33, 0.75), (x + 2.12, 0.75), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;))
+ax.annotate(&quot;&quot;, (1.0, -0.12), (10.4, -0.12), arrowprops=dict(arrowstyle=&quot;-&gt;&quot;, color=&quot;#6b7280&quot;, connectionstyle=&quot;arc3,rad=-0.12&quot;, ls=&quot;--&quot;))
+ax.text(5.7, -0.75, &quot;experiment: change something, train again&quot;, ha=&quot;center&quot;, fontsize=9, color=&quot;#6b7280&quot;)
+ax.set_xlim(-0.2, 14.0); ax.set_ylim(-1.0, 1.7); ax.axis(&quot;off&quot;); plt.show()</pre></div></details>
+<p>The example is <strong>linear regression</strong> with known answers: data generated from <span class="tex">y = 0.7x + 0.3</span>. Because we know the true weight (0.7) and bias (0.3), we can check that training actually recovers them. A straight line is the smallest neural network there is (one <code>nn.Linear(1, 1)</code>), so every step below is exactly what you will do with a CNN later.</p>
+<div class="donebar"><button class="donebtn" data-done="the-workflow-at-a-glance">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="1-data" data-num="02" data-title="1 · Data">
+<h2><span class="num">02</span> 1 · Data</h2>
+<h3 id="1-data-make-the-data">Make the data</h3>
+<p>Inputs <code>X</code> must be shaped <code>(number of examples, number of features)</code>: here 50 examples with 1 feature, so <code>(50, 1)</code>. <code>unsqueeze(dim=1)</code> turns the <code>(50,)</code> vector from <code>arange</code> into that column.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+from torch import nn
+import matplotlib.pyplot as plt
+
+weight, bias = 0.7, 0.3                       # the &quot;true&quot; parameters we hope to learn
+X = torch.arange(0, 1, 0.02).unsqueeze(dim=1) # 50 inputs, shape (50, 1)
+y = weight * X + bias                         # targets, shape (50, 1)
+print(f&quot;X {tuple(X.shape)}  y {tuple(y.shape)}&quot;)
+print(&quot;first five:&quot;, X[:5].flatten(), y[:5].flatten())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>X (50, 1)  y (50, 1)
+first five: tensor([0.0000, 0.0200, 0.0400, 0.0600, 0.0800]) tensor([0.3000, 0.3140, 0.3280, 0.3420, 0.3560])</pre></div></div></div>
+<h3 id="1-data-split-into-training-and-test-sets">Split into training and test sets</h3>
+<p>A model is judged on data it has <strong>not</strong> trained on; otherwise a model that memorised the training set would look perfect. The usual split:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Set</th>
+<th style="text-align:left">Used for</th>
+<th style="text-align:left">Typical share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>Training</strong></td>
+<td style="text-align:left">fitting the parameters (every step)</td>
+<td style="text-align:left">60–80%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Validation</strong></td>
+<td style="text-align:left">choosing settings: learning rate, size, when to stop</td>
+<td style="text-align:left">10–20%</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Test</strong></td>
+<td style="text-align:left">one final, honest estimate at the end</td>
+<td style="text-align:left">10–20%</td>
+</tr>
+</tbody>
+</table></div>
+<p>Here 80% train, 20% test (no validation set: there is nothing to tune). Because <code>X</code> is sorted, the test set is the right-hand end of the line, so the test checks whether the model <strong>extrapolates</strong>. With real data you shuffle before splitting.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">train_split = int(0.8 * len(X))
+X_train, y_train = X[:train_split], y[:train_split]
+X_test, y_test = X[train_split:], y[train_split:]
+print(f&quot;train {len(X_train)}  test {len(X_test)}&quot;)
+
+def plot_predictions(train_data=X_train, train_labels=y_train, test_data=X_test, test_labels=y_test, predictions=None):
+    &quot;&quot;&quot;Training data (blue), test data (green) and, if given, predictions on the test inputs (red).&quot;&quot;&quot;
+    plt.figure(figsize=(8, 4.5))
+    plt.scatter(train_data, train_labels, c=&quot;b&quot;, s=12, label=&quot;training data&quot;)
+    plt.scatter(test_data, test_labels, c=&quot;g&quot;, s=12, label=&quot;test data&quot;)
+    if predictions is not None:
+        plt.scatter(test_data, predictions, c=&quot;r&quot;, s=12, label=&quot;predictions&quot;)
+    plt.xlabel(&quot;x&quot;); plt.ylabel(&quot;y&quot;); plt.legend(); plt.grid(alpha=0.3); plt.show()
+
+plot_predictions()</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>train 40  test 10</pre></div><div class="orow plot"><img src="images/out/12_pytorch_workflow-02.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="1-data-dataset-and-dataloader">Dataset and DataLoader</h3>
+<p>Real datasets do not fit through a model in one go, so training works on <strong>mini-batches</strong> (note 06). PyTorch splits this into two pieces:</p>
+<ul>
+<li>a <strong><code>Dataset</code></strong> knows how many examples there are and how to fetch example <code>i</code> (<code>TensorDataset</code> wraps tensors you already have; later notes use image datasets);</li>
+<li>a <strong><code>DataLoader</code></strong> draws batches from it: <code>batch_size</code> examples at a time, reshuffled every epoch when <code>shuffle=True</code> (for training; keep the test order fixed), optionally loading in parallel with <code>num_workers</code>.</li>
+</ul>
+<div class="codewrap pyc"><pre class="code" data-lang="python">from torch.utils.data import TensorDataset, DataLoader
+
+train_dataset = TensorDataset(X_train, y_train)
+test_dataset = TensorDataset(X_test, y_test)
+BATCH_SIZE = 8
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_dataloader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+print(f&quot;{len(train_dataset)} training examples → {len(train_dataloader)} batches of up to {BATCH_SIZE}&quot;)
+batch_X, batch_y = next(iter(train_dataloader))
+print(&quot;one batch:&quot;, tuple(batch_X.shape), tuple(batch_y.shape), batch_X.flatten())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>40 training examples → 5 batches of up to 8
+one batch: (8, 1) (8, 1) tensor([0.7600, 0.0400, 0.3000, 0.6800, 0.5200, 0.7400, 0.1800, 0.4200])</pre></div></div></div>
+<p>40 examples in batches of 8 gives 5 batches per epoch; with 42 the last batch would hold 2 (pass <code>drop_last=True</code> to skip it).</p>
+<div class="donebar"><button class="donebtn" data-done="1-data">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="2-building-a-model" data-num="03" data-title="2 · Building a model">
+<h2><span class="num">03</span> 2 · Building a model</h2>
+<h3 id="2-building-a-model-the-building-blocks">The building blocks</h3>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">PyTorch piece</th>
+<th style="text-align:left">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><a href="https://pytorch.org/docs/stable/nn.html"><code>torch.nn</code></a></td>
+<td style="text-align:left">all the layers, activations and losses</td>
+</tr>
+<tr>
+<td style="text-align:left"><a href="https://pytorch.org/docs/stable/generated/torch.nn.Module.html"><code>nn.Module</code></a></td>
+<td style="text-align:left">the base class of every model and layer: subclass it, create parameters/layers in <code>__init__</code>, compute in <code>forward()</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><a href="https://pytorch.org/docs/stable/generated/torch.nn.parameter.Parameter.html"><code>nn.Parameter</code></a></td>
+<td style="text-align:left">a tensor that belongs to a module and is trained (<code>requires_grad=True</code> automatically)</td>
+</tr>
+<tr>
+<td style="text-align:left"><a href="https://pytorch.org/docs/stable/optim.html"><code>torch.optim</code></a></td>
+<td style="text-align:left">optimisers (SGD, Adam, …) that update the parameters from their gradients</td>
+</tr>
+<tr>
+<td style="text-align:left"><a href="https://pytorch.org/docs/stable/data.html"><code>torch.utils.data</code></a></td>
+<td style="text-align:left"><code>Dataset</code> and <code>DataLoader</code> (above)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="2-building-a-model-a-model-written-by-hand">A model written by hand</h3>
+<p>Two learnable numbers and the formula <span class="tex">\hat{y} = wx + b</span>:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">class LinearRegressionModel(nn.Module):        # every model subclasses nn.Module
+    def __init__(self):
+        super().__init__()                     # sets up parameter tracking; always call it first
+        self.weights = nn.Parameter(torch.randn(1))   # start random; training will adjust them
+        self.bias = nn.Parameter(torch.randn(1))
+
+    def forward(self, x: torch.Tensor) -&gt; torch.Tensor:   # what model(x) computes
+        return self.weights * x + self.bias
+
+torch.manual_seed(42)
+model_0 = LinearRegressionModel()
+print(list(model_0.parameters()))
+print(model_0.state_dict())                    # the same values, by name</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>[Parameter containing:
+tensor([0.3367], requires_grad=True), Parameter containing:
+tensor([0.1288], requires_grad=True)]
+OrderedDict({&#x27;weights&#x27;: tensor([0.3367]), &#x27;bias&#x27;: tensor([0.1288])})</pre></div></div></div>
+<p>You call the model like a function, <code>model_0(X)</code>, and PyTorch runs <code>forward</code> (plus some bookkeeping; don't call <code>forward</code> directly).</p>
+<h3 id="2-building-a-model-predictions-before-training">Predictions before training</h3>
+<p><code>torch.inference_mode()</code> switches autograd off for code that only predicts: no graph is recorded, so it is faster and uses less memory (<code>torch.no_grad()</code> does the same in older code).</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">with torch.inference_mode():
+    y_preds = model_0(X_test)
+print(f&quot;{len(y_preds)} predictions; first three: {y_preds[:3].flatten()}&quot;)
+print(&quot;errors (y_test - y_preds):&quot;, (y_test - y_preds)[:3].flatten())
+plot_predictions(predictions=y_preds)          # random weights: nowhere near the green points</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>10 predictions; first three: tensor([0.3982, 0.4049, 0.4116])
+errors (y_test - y_preds): tensor([0.4618, 0.4691, 0.4764])</pre></div><div class="orow plot"><img src="images/out/12_pytorch_workflow-03.png" alt="plot" loading="lazy"></div></div></div>
+<h3 id="2-building-a-model-the-usual-way-nnlinear-and-nnsequential">The usual way: nn.Linear and nn.Sequential</h3>
+<p>Writing parameters by hand is rare. <code>nn.Linear(in_features, out_features)</code> creates the weight matrix and bias for you and computes <span class="tex">xW^T + b</span>; activations are layers too (<code>nn.ReLU()</code>, <code>nn.Sigmoid()</code>). A small classifier for 2 inputs:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">class SimpleNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layer1 = nn.Linear(in_features=2, out_features=10)   # 2 inputs → 10 hidden units
+        self.relu = nn.ReLU()
+        self.layer2 = nn.Linear(in_features=10, out_features=1)   # 10 hidden → 1 output
+        self.sigmoid = nn.Sigmoid()                               # output in (0, 1): a probability
+
+    def forward(self, x):
+        x = self.layer1(x)          # (batch, 2)  → (batch, 10)
+        x = self.relu(x)
+        x = self.layer2(x)          # (batch, 10) → (batch, 1)
+        return self.sigmoid(x)
+
+net = SimpleNN()
+print(net)                                                   # the layers, in the order they were created
+print(&quot;output shape for a batch of 5:&quot;, tuple(net(torch.rand(5, 2)).shape))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>SimpleNN(
+  (layer1): Linear(in_features=2, out_features=10, bias=True)
+  (relu): ReLU()
+  (layer2): Linear(in_features=10, out_features=1, bias=True)
+  (sigmoid): Sigmoid()
+)
+output shape for a batch of 5: (5, 1)</pre></div></div></div>
+<p>When the layers simply run one after another, <code>nn.Sequential</code> saves writing <code>forward</code>:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">seq = nn.Sequential(nn.Linear(2, 10), nn.ReLU(), nn.Linear(10, 1), nn.Sigmoid())
+print(seq)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>Sequential(
+  (0): Linear(in_features=2, out_features=10, bias=True)
+  (1): ReLU()
+  (2): Linear(in_features=10, out_features=1, bias=True)
+  (3): Sigmoid()
+)</pre></div></div></div>
+<h3 id="2-building-a-model-counting-parameters">Counting parameters</h3>
+<p>A linear layer from <span class="tex">m</span> inputs to <span class="tex">n</span> outputs has an <span class="tex">n \times m</span> weight matrix plus <span class="tex">n</span> biases: <span class="tex">mn + n</span> parameters (note 03). Activations have none. PyTorch counts for you:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">for name, p in net.named_parameters():
+    print(f&quot;{name:15s} {str(tuple(p.shape)):10s} {p.numel():4d}&quot;)
+print(&quot;total:&quot;, sum(p.numel() for p in net.parameters() if p.requires_grad), &quot; = (2·10 + 10) + (10·1 + 1)&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>layer1.weight   (10, 2)      20
+layer1.bias     (10,)        10
+layer2.weight   (1, 10)      10
+layer2.bias     (1,)          1
+total: 41  = (2·10 + 10) + (10·1 + 1)</pre></div></div></div>
+<div class="pq" data-answer="A, C" data-type="multi" data-tag="Practice"><div class="pq-q"><p>Consider the following PyTorch code:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class Net(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+        self.fc1 = nn.Linear(12, 8)
+        self.fc2 = nn.Linear(8, 6)
+        self.fc3 = nn.Linear(6, 4)
+
+    def forward(self, x):
+
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
+
+        return x
+
+model = Net()
+inp = torch.randn(10, 12)
+out = model(inp)</pre></div>
+<p>Which of the following statements is/are correct?</p>
+</div><ol class="pq-opts"><li>The output after the first linear layer (<code>fc1</code>) has shape <code>(10, 8)</code>.</li><li>There are 30 neurons in the network.</li><li>The final output <code>out</code> has shape <code>(10, 4)</code>.</li><li>The ratio of input neurons to output neurons in this network is <strong>1:3</strong>.</li></ol><div class="pq-why"><p>Before solving the question, let's understand a few terms.</p>
+<ul>
+<li>
+<p><strong><code>nn.Linear(in_features, out_features)</code></strong></p>
+<p>Creates a fully connected (dense) layer.</p>
+<ul>
+<li><code>in_features</code> → Number of input neurons.</li>
+<li><code>out_features</code> → Number of output neurons.</li>
+</ul>
+</li>
+</ul>
+<p>For example,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">nn.Linear(12, 8)</pre></div>
+<p>means</p>
+<div class="codewrap"><pre class="code" data-lang="text">12 input neurons
+        │
+        ▼
+8 output neurons</pre></div>
+<p>The network architecture is</p>
+<div class="codewrap"><pre class="code" data-lang="text">Input Layer      : 12 neurons
+
+        │
+
+fc1 : 12 → 8
+
+        │
+
+fc2 : 8 → 6
+
+        │
+
+fc3 : 6 → 4
+
+        │
+
+Output Layer     : 4 neurons</pre></div>
+<p>The input is</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">inp = torch.randn(10, 12)</pre></div>
+<p>Here,</p>
+<ul>
+<li><strong>10</strong> → Batch size (10 input samples are processed together).</li>
+<li><strong>12</strong> → Number of features (input neurons).</li>
+</ul>
+<p>So the input shape is</p>
+<div class="codewrap"><pre class="code" data-lang="text">(10, 12)</pre></div>
+<p><code>Passing through</code> <code>fc1</code></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x = self.fc1(x)</pre></div>
+<p><code>fc1</code> changes</p>
+<div class="codewrap"><pre class="code" data-lang="text">12 features</pre></div>
+<p>into</p>
+<div class="codewrap"><pre class="code" data-lang="text">8 features.</pre></div>
+<p>The batch size does <strong>not</strong> change.</p>
+<p>So,</p>
+<div class="codewrap"><pre class="code" data-lang="text">(10,12)
+
+↓
+
+(10,8)</pre></div>
+<p>After applying</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">F.relu(...)</pre></div>
+<p>the shape remains unchanged because <strong>ReLU only changes the values, not the dimensions</strong>.</p>
+<p>Therefore,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Output after fc1 = (10,8)</pre></div>
+<p><code>Passing through</code> <code>fc2</code></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x = self.fc2(x)</pre></div>
+<p>Shape changes from</p>
+<div class="codewrap"><pre class="code" data-lang="text">(10,8)
+
+↓
+
+(10,6)</pre></div>
+<p>Again,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">F.relu(x)</pre></div>
+<p>does not change the shape.</p>
+<p><code>Passing through</code> <code>fc3</code></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x = self.fc3(x)</pre></div>
+<p>Shape changes from</p>
+<div class="codewrap"><pre class="code" data-lang="text">(10,6)
+
+↓
+
+(10,4)</pre></div>
+<p>Therefore,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">out</pre></div>
+<p>has shape</p>
+<div class="codewrap"><pre class="code" data-lang="text">(10,4)</pre></div>
+<blockquote>
+<p><strong>Option A ✅ :</strong> The output after the first linear layer (<code>fc1</code>) has shape <code>(10, 8)</code>.</p>
+</blockquote>
+<p>Correct.</p>
+<p>The batch size stays <strong>10</strong>, while the number of features changes from <strong>12</strong> to <strong>8</strong>.</p>
+<blockquote>
+<p><strong>Option B ❌ :</strong> There are 30 neurons in the network.</p>
+</blockquote>
+<p>The network contains</p>
+<ul>
+<li>Input Layer = 12 neurons</li>
+<li>Hidden Layer 1 = 8 neurons</li>
+<li>Hidden Layer 2 = 6 neurons</li>
+<li>Output Layer = 4 neurons</li>
+</ul>
+<p>Total neurons</p>
+<div class="tex-d">12+8+6+4=30.</div>
+<p>However, <strong>input neurons are usually not counted as computational neurons</strong>, since they simply hold the input values and perform no computation.</p>
+<p>In neural networks, when someone asks for the number of neurons in the network, they generally refer to the <strong>hidden and output neurons</strong>.</p>
+<p>That would be</p>
+<div class="tex-d">8+6+4=18.</div>
+<p>So this statement is considered <strong>incorrect</strong>.</p>
+<blockquote>
+<p><strong>Option C ✅ :</strong> The final output <code>out</code> has shape <code>(10, 4)</code>.</p>
+</blockquote>
+<p>Correct.</p>
+<p>The last layer converts</p>
+<div class="codewrap"><pre class="code" data-lang="text">6 features
+
+↓
+
+4 features</pre></div>
+<p>while keeping the batch size <strong>10</strong>.</p>
+<blockquote>
+<p><strong>Option D ❌ :</strong> The ratio of input neurons to output neurons in this network is <strong>1:3</strong>.</p>
+</blockquote>
+<p>The network has</p>
+<ul>
+<li>Input neurons = 12</li>
+<li>Output neurons = 4</li>
+</ul>
+<p>Therefore,</p>
+<div class="tex-d">12:4=3:1,</div>
+<p>not</p>
+<div class="tex-d">1:3.</div>
+<p>💡 <strong>Easy Way to Track Shapes</strong></p>
+<div class="codewrap"><pre class="code" data-lang="text">Input
+
+(10,12)
+
+      │
+      ▼
+
+fc1
+
+(10,8)
+
+      │
+      ▼
+
+fc2
+
+(10,6)
+
+      │
+      ▼
+
+fc3
+
+(10,4)</pre></div>
+<p>Notice that</p>
+<ul>
+<li>The <strong>first number (10)</strong> is the <strong>batch size</strong> and never changes.</li>
+<li>The <strong>second number</strong> changes according to each <code>Linear</code> layer.</li>
+</ul>
+<p><strong>No clue?</strong> Track only the last number of the shape through each layer: <code>nn.Linear(a, b)</code> turns <code>(..., a)</code> into <code>(..., b)</code> and never touches the batch size in front. For counting neurons, the usual convention counts units that compute something (hidden and output layers), not the input values. Then run the code in a <strong>+ cell</strong> and print <code>model.fc1(inp).shape</code> and <code>out.shape</code>.</p>
+</div></div>
+<div class="pq" data-answer="331" data-type="num" data-tol="0" data-tag="Practice"><div class="pq-q"><p>Consider the following code snippet:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">model = nn.Sequential(
+
+    nn.Linear(10, 20),
+
+    nn.ReLU(),
+
+    nn.Linear(20, 5),
+
+    nn.ReLU(),
+
+    nn.Linear(5, 1)
+
+)</pre></div>
+<p>How many <strong>trainable parameters (including bias)</strong> does this model have in total?</p>
+</div><div class="pq-why"><p>Before solving the question, let's understand the important terms.</p>
+<ul>
+<li>
+<p><strong>Trainable Parameters</strong></p>
+<p>These are the values the neural network learns during training.</p>
+<p>They consist of</p>
+<ul>
+<li><strong>Weights</strong></li>
+<li><strong>Biases</strong></li>
+</ul>
+</li>
+<li>
+<p><strong><code>nn.Linear(in_features, out_features)</code></strong></p>
+<p>Creates a fully connected layer.</p>
+<ul>
+<li><code>in_features</code> → Number of input neurons.</li>
+<li><code>out_features</code> → Number of output neurons.</li>
+</ul>
+</li>
+</ul>
+<p>For every <code>Linear</code> layer,</p>
+<div class="tex-d">\boxed{\text{Parameters}=(\text{Input Neurons}\times\text{Output Neurons})+\text{Output Neurons}}</div>
+<p>where</p>
+<ul>
+<li>Input Neurons × Output Neurons = Weights</li>
+<li>Output Neurons = Biases</li>
+</ul>
+<p>Notice that</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">nn.ReLU()</pre></div>
+<p>has <strong>no trainable parameters</strong>.</p>
+<p>It only applies the ReLU activation function.</p>
+<p>So, we only count the <code>Linear</code> layers.</p>
+<p><strong>First Linear Layer</strong></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">nn.Linear(10, 20)</pre></div>
+<p>Weights</p>
+<div class="tex-d">10 \times 20 = 200</div>
+<p>Biases</p>
+<div class="tex-d">20</div>
+<p>Total parameters</p>
+<div class="tex-d">200+20=220</div>
+<p><strong>Second Linear Layer</strong></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">nn.Linear(20, 5)</pre></div>
+<p>Weights</p>
+<div class="tex-d">20 \times 5 = 100</div>
+<p>Biases</p>
+<div class="tex-d">5</div>
+<p>Total parameters</p>
+<div class="tex-d">100+5=105</div>
+<p><strong>Third Linear Layer</strong></p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">nn.Linear(5, 1)</pre></div>
+<p>Weights</p>
+<div class="tex-d">5 \times 1 = 5</div>
+<p>Biases</p>
+<div class="tex-d">1</div>
+<p>Total parameters</p>
+<div class="tex-d">5+1=6</div>
+<p><strong>Total Trainable Parameters</strong></p>
+<p>Add the parameters from all Linear layers.</p>
+<div class="tex-d">220+105+6=331</div>
+<p>Therefore,</p>
+<div class="tex-d">\boxed{331}</div>
+<p>trainable parameters are present in the model.</p>
+<p>💡 <strong>Easy Way to Remember</strong></p>
+<p>Only <strong>Linear (or Conv)</strong> layers have trainable parameters.</p>
+<p>Activation functions like</p>
+<div class="codewrap"><pre class="code" data-lang="text">ReLU
+Sigmoid
+Tanh
+Softmax</pre></div>
+<p>do <strong>not</strong> have any trainable parameters.</p>
+<p>For this network,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Linear(10→20)
+
+200 weights
+20 biases
+
+↓
+
+220
+
++
+
+Linear(20→5)
+
+100 weights
+5 biases
+
+↓
+
+105
+
++
+
+Linear(5→1)
+
+5 weights
+1 bias
+
+↓
+
+6
+
+Total = 331</pre></div>
+<p><strong>No clue?</strong> Count only the layers with weights. For each <code>nn.Linear(m, n)</code> write <code>m·n + n</code>, add them up, and check with <code>sum(p.numel() for p in model.parameters())</code> in a <strong>+ cell</strong>.</p>
+</div></div>
+<div class="donebar"><button class="donebtn" data-done="2-building-a-model">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="3-loss-and-optimiser" data-num="04" data-title="3 · Loss and optimiser">
+<h2><span class="num">04</span> 3 · Loss and optimiser</h2>
+<h3 id="3-loss-and-optimiser-choosing-the-loss">Choosing the loss</h3>
+<p>The loss turns &quot;how wrong&quot; into one number to minimise (note 05). PyTorch's built-ins:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Task</th>
+<th style="text-align:left">Model output</th>
+<th style="text-align:left">Loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Regression</td>
+<td style="text-align:left">any real number</td>
+<td style="text-align:left"><code>nn.MSELoss()</code> (squared error) or <code>nn.L1Loss()</code> (absolute error, MAE)</td>
+</tr>
+<tr>
+<td style="text-align:left">Binary classification</td>
+<td style="text-align:left">one <strong>probability</strong> (after <code>nn.Sigmoid</code>)</td>
+<td style="text-align:left"><code>nn.BCELoss()</code></td>
+</tr>
+<tr>
+<td style="text-align:left">Binary classification</td>
+<td style="text-align:left">one <strong>raw score</strong> (no sigmoid)</td>
+<td style="text-align:left"><code>nn.BCEWithLogitsLoss()</code>, more stable</td>
+</tr>
+<tr>
+<td style="text-align:left">Multi-class classification</td>
+<td style="text-align:left">one <strong>raw score per class</strong> (logits)</td>
+<td style="text-align:left"><code>nn.CrossEntropyLoss()</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Two rules people trip on. <code>nn.CrossEntropyLoss</code> applies <code>log_softmax</code> itself, so the model must output <strong>raw logits</strong> with no softmax layer at the end, and the targets are class <strong>indices</strong> (<code>int64</code>), not one-hot vectors. And the <code>...WithLogits</code> / <code>CrossEntropy</code> losses are preferred over &quot;sigmoid + BCELoss&quot; because combining the two steps avoids <code>log(0)</code> overflow.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">logits = torch.tensor([[2.0, 0.5, -1.0]])          # raw scores for 3 classes, one example
+target = torch.tensor([0])                          # the true class index
+ce = nn.CrossEntropyLoss()
+print(&quot;CrossEntropyLoss(logits)           :&quot;, ce(logits, target).item())
+print(&quot;-log(softmax(logits)[true class])  :&quot;, -torch.log_softmax(logits, dim=1)[0, 0].item())
+print(&quot;softmax first (a bug: applied twice):&quot;, ce(torch.softmax(logits, dim=1), target).item())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>CrossEntropyLoss(logits)           : 0.24131132662296295
+-log(softmax(logits)[true class])  : 0.24131132662296295
+softmax first (a bug: applied twice): 0.7017174959182739</pre></div></div></div>
+<div class="pq" data-answer="A" data-type="single" data-tag="Practice"><div class="pq-q"><p>Is the following statement <strong>True or False</strong>?</p>
+<blockquote>
+<p>Using <code>torch.nn.Softmax</code> before <code>torch.nn.CrossEntropyLoss</code> is unnecessary, because <code>CrossEntropyLoss</code> in PyTorch expects <strong>raw logits</strong> and internally applies <code>log_softmax</code>.</p>
+</blockquote>
+</div><ol class="pq-opts"><li>True — PyTorch expects raw logits, not probabilities.</li><li>False — <code>CrossEntropyLoss</code> requires probabilities as input.</li></ol><div class="pq-why"><p>Before solving the question, let's understand the important terms.</p>
+<ul>
+<li>
+<p><strong>Logits</strong> → The <strong>raw output values</strong> produced by the last layer of a neural network <strong>before any activation function</strong> is applied.</p>
+<p>For example,</p>
+</li>
+</ul>
+<div class="codewrap"><pre class="code" data-lang="text">Output of the last layer
+
+[2.5, 0.8, -1.3]</pre></div>
+<p>These are <strong>logits</strong>.</p>
+<p>Notice that</p>
+<ul>
+<li>
+<p>They are <strong>not between 0 and 1</strong>.</p>
+</li>
+<li>
+<p>They <strong>do not add up to 1</strong>.</p>
+</li>
+<li>
+<p><strong>Softmax</strong> → Converts logits into <strong>probabilities</strong>.</p>
+</li>
+</ul>
+<p>For example,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Logits
+
+[2.5, 0.8, -1.3]</pre></div>
+<p>After applying Softmax,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Probabilities
+
+[0.82, 0.15, 0.03]</pre></div>
+<p>Now,</p>
+<ul>
+<li>
+<p>Every value lies between <strong>0 and 1</strong>.</p>
+</li>
+<li>
+<p>All probabilities add up to <strong>1</strong>.</p>
+</li>
+<li>
+<p><strong>CrossEntropyLoss</strong> → A loss function commonly used for <strong>multi-class classification</strong>.</p>
+</li>
+</ul>
+<p>In PyTorch,</p>
+<p><code>CrossEntropyLoss</code> expects <strong>raw logits</strong>, <strong>not probabilities</strong>.</p>
+<p>Internally, it automatically performs</p>
+<div class="codewrap"><pre class="code" data-lang="text">Logits
+
+↓
+
+log_softmax
+
+↓
+
+Cross Entropy Loss</pre></div>
+<p>Because it already applies <code>log_softmax</code>, <strong>you should not apply <code>Softmax</code> yourself</strong> before passing the output to <code>CrossEntropyLoss</code>.</p>
+<p>Doing so means Softmax is effectively applied twice, which can lead to incorrect training and numerical instability.</p>
+<blockquote>
+<p><strong>Option A ✅ :</strong> True — PyTorch expects raw logits, not probabilities.</p>
+</blockquote>
+<p>This is exactly how <code>CrossEntropyLoss</code> is designed.</p>
+<p>The model should output <strong>raw logits</strong>, and <code>CrossEntropyLoss</code> handles the conversion internally.</p>
+<p>✅ <strong>Option A is Correct.</strong></p>
+<blockquote>
+<p><strong>Option B ❌ :</strong> False — <code>CrossEntropyLoss</code> requires probabilities as input.</p>
+</blockquote>
+<p>Incorrect.</p>
+<p>This is a common misunderstanding.</p>
+<p>Unlike some other deep learning libraries, PyTorch's <code>CrossEntropyLoss</code> expects <strong>raw logits</strong>, not probabilities.</p>
+<p>💡 <strong>Easy Way to Remember</strong></p>
+<p>When using <code>CrossEntropyLoss</code>, think of the pipeline as</p>
+<div class="codewrap"><pre class="code" data-lang="text">Input
+
+↓
+
+Neural Network
+
+↓
+
+Raw Logits
+
+↓
+
+CrossEntropyLoss
+      │
+      └── Internally applies log_softmax</pre></div>
+<p><strong>Do NOT do this:</strong></p>
+<div class="codewrap"><pre class="code" data-lang="text">Neural Network
+
+↓
+
+Softmax
+
+↓
+
+CrossEntropyLoss</pre></div>
+<p>because <code>CrossEntropyLoss</code> already performs the necessary conversion internally.</p>
+<p><strong>No clue?</strong> Look at what the loss's documentation says it expects, or test it: the cell just above computes the loss from logits, from <code>-log_softmax</code> by hand, and with an extra softmax in front. The first two agree; the third does not, which tells you the loss already contains the softmax.</p>
+</div></div>
+<h3 id="3-loss-and-optimiser-a-custom-loss">A custom loss</h3>
+<p>A loss is just a module whose <code>forward</code> returns a scalar tensor, so you can write your own. Here are MAE (identical to <code>nn.L1Loss</code>) and the Huber loss, quadratic for small errors and linear for large ones:</p>
+<div class="tex-d">L_\delta(a) = \begin{cases} \tfrac12 a^2 &amp; |a| \le \delta \\ \delta |a| - \tfrac12 \delta^2 &amp; |a| &gt; \delta \end{cases}, \qquad a = y - \hat{y}</div>
+<div class="codewrap pyc"><pre class="code" data-lang="python">class MeanAbsoluteError(nn.Module):
+    def forward(self, predictions, targets):
+        return torch.mean(torch.abs(predictions - targets))
+
+class HuberLoss(nn.Module):
+    def __init__(self, delta=1.0):
+        super().__init__()
+        self.delta = delta
+    def forward(self, predictions, targets):
+        a = torch.abs(targets - predictions)
+        quadratic = 0.5 * a ** 2
+        linear = self.delta * a - 0.5 * self.delta ** 2
+        return torch.mean(torch.where(a &lt;= self.delta, quadratic, linear))
+
+p, t = torch.tensor([1.0, 2.0, 7.0]), torch.tensor([1.5, 2.0, 2.0])
+print(&quot;custom MAE  :&quot;, MeanAbsoluteError()(p, t).item(), &quot;  nn.L1Loss   :&quot;, nn.L1Loss()(p, t).item())
+print(&quot;custom Huber:&quot;, HuberLoss(1.0)(p, t).item(), &quot;  nn.HuberLoss:&quot;, nn.HuberLoss(delta=1.0)(p, t).item())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>custom MAE  : 1.8333333730697632   nn.L1Loss   : 1.8333333730697632
+custom Huber: 1.5416666269302368   nn.HuberLoss: 1.5416666269302368</pre></div></div></div>
+<h3 id="3-loss-and-optimiser-the-optimiser">The optimiser</h3>
+<p>The optimiser holds a reference to the model's parameters and, on <code>optimizer.step()</code>, moves each one using its <code>.grad</code> (note 06). Plain SGD does <span class="tex">\theta \leftarrow \theta - \eta \nabla_\theta L</span>; <code>torch.optim.Adam</code> is the usual default for bigger models. The <strong>learning rate</strong> <code>lr</code> is the setting that matters most.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">loss_fn = nn.L1Loss()                                            # MAE: fine for this regression
+optimizer = torch.optim.SGD(params=model_0.parameters(), lr=0.01)
+print(loss_fn, optimizer, sep=&quot;\n&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>L1Loss()
+SGD (
+Parameter Group 0
+    dampening: 0
+    differentiable: False
+    foreach: None
+    fused: None
+    lr: 0.01
+    maximize: False
+    momentum: 0
+    nesterov: False
+    weight_decay: 0
+)</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="3-loss-and-optimiser">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="4-the-training-and-testing-loops" data-num="05" data-title="4 · The training and testing loops">
+<h2><span class="num">05</span> 4 · The training and testing loops</h2>
+<h3 id="4-the-training-and-testing-loops-the-five-steps-of-a-training-step">The five steps of a training step</h3>
+<p>For each batch:</p>
+<ol>
+<li><strong>Forward pass:</strong> <code>y_pred = model(X)</code>.</li>
+<li><strong>Loss:</strong> <code>loss = loss_fn(y_pred, y)</code>.</li>
+<li><strong>Zero the gradients:</strong> <code>optimizer.zero_grad()</code>, because gradients accumulate (note 11).</li>
+<li><strong>Backward pass:</strong> <code>loss.backward()</code> computes <span class="tex">\partial L / \partial \theta</span> for every parameter.</li>
+<li><strong>Step:</strong> <code>optimizer.step()</code> updates the parameters.</li>
+</ol>
+<p>The order of 3 relative to 1–2 does not matter, but it must come before 4. Testing is the same forward pass and loss with no steps 3–5, inside <code>model.eval()</code> and <code>torch.inference_mode()</code>.</p>
+<p><code>model.train()</code> and <code>model.eval()</code> switch layers that behave differently in training (dropout, batch norm, note 09). This model has none, but writing both is the habit that saves you later.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">torch.manual_seed(42)
+model_0 = LinearRegressionModel()
+optimizer = torch.optim.SGD(model_0.parameters(), lr=0.01)
+EPOCHS = 200
+history = {&quot;epoch&quot;: [], &quot;train&quot;: [], &quot;test&quot;: []}
+
+for epoch in range(EPOCHS):
+    model_0.train()
+    train_loss = 0.0
+    for batch_X, batch_y in train_dataloader:
+        y_pred = model_0(batch_X)                 # 1 forward
+        loss = loss_fn(y_pred, batch_y)           # 2 loss
+        optimizer.zero_grad()                     # 3 clear old gradients
+        loss.backward()                           # 4 backward
+        optimizer.step()                          # 5 update
+        train_loss += loss.item()
+    train_loss /= len(train_dataloader)
+
+    model_0.eval()
+    with torch.inference_mode():
+        test_loss = sum(loss_fn(model_0(bx), by).item() for bx, by in test_dataloader) / len(test_dataloader)
+
+    if epoch % 20 == 0 or epoch == EPOCHS - 1:
+        history[&quot;epoch&quot;].append(epoch); history[&quot;train&quot;].append(train_loss); history[&quot;test&quot;].append(test_loss)
+        print(f&quot;epoch {epoch:3d} | train loss {train_loss:.4f} | test loss {test_loss:.4f}&quot;)
+
+print(&quot;learned:&quot;, {k: round(v.item(), 4) for k, v in model_0.state_dict().items()}, &quot;  true: weights 0.7, bias 0.3&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>epoch   0 | train loss 0.2899 | test loss 0.4375
+epoch  20 | train loss 0.0244 | test loss 0.0624
+epoch  40 | train loss 0.0058 | test loss 0.0027
+epoch  60 | train loss 0.0061 | test loss 0.0043
+epoch  80 | train loss 0.0051 | test loss 0.0073
+epoch 100 | train loss 0.0054 | test loss 0.0016
+epoch 120 | train loss 0.0050 | test loss 0.0125
+epoch 140 | train loss 0.0060 | test loss 0.0061
+epoch 160 | train loss 0.0060 | test loss 0.0053
+epoch 180 | train loss 0.0060 | test loss 0.0060
+epoch 199 | train loss 0.0052 | test loss 0.0118
+learned: {&#x27;weights&#x27;: 0.706, &#x27;bias&#x27;: 0.3063}   true: weights 0.7, bias 0.3</pre></div></div></div>
+<div class="codewrap pyc"><pre class="code" data-lang="python">plt.figure(figsize=(7, 3.5))
+plt.plot(history[&quot;epoch&quot;], history[&quot;train&quot;], label=&quot;train loss&quot;)
+plt.plot(history[&quot;epoch&quot;], history[&quot;test&quot;], label=&quot;test loss&quot;)
+plt.xlabel(&quot;epoch&quot;); plt.ylabel(&quot;L1 loss&quot;); plt.legend(); plt.grid(alpha=0.3); plt.show()
+with torch.inference_mode():
+    y_preds = model_0(X_test)
+plot_predictions(predictions=y_preds)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/12_pytorch_workflow-04.png" alt="plot" loading="lazy"></div><div class="orow plot"><img src="images/out/12_pytorch_workflow-05.png" alt="plot" loading="lazy"></div></div></div>
+<p>Both losses fall together toward zero and the red predictions land on the green test points: the model recovered the line. Try <code>lr=0.001</code> (too slow for 200 epochs) or <code>lr=0.5</code> (it bounces) and run both cells again.</p>
+<p>Why does the loss stop near 0.005 and wobble instead of reaching 0? The L1 loss's gradient is <span class="tex">\pm 1</span> whatever the size of the error, so every step moves the parameters by about the learning rate, even right next to the answer: with a fixed rate, the line keeps jittering around 0.7 and 0.3. A shrinking learning rate (a <em>schedule</em>, below) or the MSE loss, whose gradient shrinks with the error, lets it settle.</p>
+<div class="pq" data-answer="A, B, C" data-type="multi" data-tag="Practice"><div class="pq-q"><p>Consider the following PyTorch training loop:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">for epoch in range(100):
+    for data, target in loader:
+        optimizer.zero_grad()
+        output = model(data)
+        loss = criterion(output, target)
+        loss.backward()
+        optimizer.step()
+    print(loss.item())</pre></div>
+<p>Which of the following is/are correct?</p>
+</div><ol class="pq-opts"><li>The printed <code>loss.item()</code> is from the last mini-batch of each epoch.</li><li>Forgetting <code>optimizer.zero_grad()</code> can cause gradients to accumulate and training to diverge.</li><li>If <code>loss.backward()</code> is called but <code>optimizer.step()</code> is omitted, the weights won't update, though gradients are computed.</li></ol><div class="pq-why"><blockquote>
+<p>A. The printed <code>loss.item()</code> is from the last mini-batch of each epoch. ✅</p>
+</blockquote>
+<p>The <code>print(loss.item())</code> statement is <strong>outside</strong> the inner loop but <strong>inside</strong> the epoch loop.</p>
+<ul>
+<li><strong><code>loss</code></strong>: Stores how much error the model made for the current mini-batch.</li>
+<li><strong><code>.item()</code></strong>: Converts the single-value tensor (<code>loss</code>) into a normal Python number so it can be printed.</li>
+</ul>
+<p>Since <code>loss</code> is updated for every mini-batch inside the loop, after the loop finishes it contains the <strong>last mini-batch's loss</strong>.</p>
+<p>Therefore, the printed value corresponds to the <strong>last mini-batch loss</strong>, <strong>not</strong> the average loss of the epoch.</p>
+<blockquote>
+<p>B. Forgetting <code>optimizer.zero_grad()</code> can cause gradients to accumulate and training to diverge. ✅</p>
+</blockquote>
+<p>PyTorch : <strong>accumulates gradients by default</strong>.</p>
+<ul>
+<li><strong><code>optimizer</code></strong>: Updates the model's weights.</li>
+<li><strong><code>zero_grad()</code></strong>: Clears the gradients from the previous iteration before computing new ones.</li>
+<li><strong>Gradient accumulation</strong>: If gradients are not cleared, new gradients are added to the old ones, resulting in incorrect weight updates.</li>
+</ul>
+<p>Since PyTorch accumulates gradients by default, forgetting <code>optimizer.zero_grad()</code> can make the updates too large and training may become unstable.</p>
+<blockquote>
+<p>C. If <code>loss.backward()</code> is called but <code>optimizer.step()</code> is omitted, the weights won't update, though gradients are computed. ✅</p>
+</blockquote>
+<p><code>loss.backward()</code> performs <strong>backpropagation</strong></p>
+<p>It computes and stores these gradients in <code>parameter.grad</code>, However, <strong>no parameters are updated</strong> until <code>optimizer.step()</code> is executed.</p>
+<ul>
+<li><strong><code>loss.backward()</code></strong>: Computes the gradients of the loss with respect to the model's parameters.</li>
+<li><strong><code>optimizer.step()</code></strong>: Uses those gradients to update the model's weights.</li>
+</ul>
+<p>If <code>optimizer.step()</code> is skipped, gradients are still computed, but the weights never change, so the model does not learn.</p>
+<details>
+<summary>
+<p><strong><code>❓ Question:</code></strong></p>
+<p>The following is a custom PyTorch training loop:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">for epoch in range(num_epochs):
+    for inputs, labels in dataloader:
+        outputs = model(inputs)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()</pre></div>
+<p>Which of the following statements is correct?</p>
+<blockquote>
+<p><strong>A.</strong> Gradients from previous batches will accumulate, leading to larger-than-intended updates.</p>
+</blockquote>
+<blockquote>
+<p><strong>B.</strong> The code will not run at all due to a missing statement in the training loop.</p>
+</blockquote>
+<blockquote>
+<p><strong>C.</strong> The effective learning rate will increase exponentially due to gradient accumulation.</p>
+</blockquote>
+<blockquote>
+<p><strong>D.</strong> Training will happen stably as usual.</p>
+</blockquote>
+</summary>
+<p>Before solving the question, let's understand the important functions used in a PyTorch training loop.</p>
+<ul>
+<li>
+<p><strong><code>loss.backward()</code></strong> → Computes the gradients of the loss with respect to every trainable parameter and stores them in the parameter's <code>.grad</code> attribute.</p>
+</li>
+<li>
+<p><strong><code>optimizer.step()</code></strong> → Updates the model's weights using the gradients that were computed by <code>loss.backward()</code>.</p>
+</li>
+<li>
+<p><strong><code>optimizer.zero_grad()</code></strong> → Clears (resets) all previously stored gradients.</p>
+</li>
+</ul>
+<p>A normal PyTorch training loop looks like this:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">for inputs, labels in dataloader:
+
+    optimizer.zero_grad()
+
+    outputs = model(inputs)
+
+    loss = criterion(outputs, labels)
+
+    loss.backward()
+
+    optimizer.step()</pre></div>
+<p>Notice that</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">optimizer.zero_grad()</pre></div>
+<p>is called <strong>before</strong> <code>loss.backward()</code>.</p>
+<p><code>What is missing in the given code?</code></p>
+<p>The given code does <strong>not</strong> call</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">optimizer.zero_grad()</pre></div>
+<p>before computing the next batch.</p>
+<p><code>Why is this a problem?</code></p>
+<p>PyTorch <strong>does not automatically clear gradients</strong> after each batch.</p>
+<p>Instead,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">loss.backward()</pre></div>
+<p><strong>adds</strong> the newly computed gradients to the gradients already stored.</p>
+<p>For example,</p>
+<p>After Batch 1,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Gradient = 2</pre></div>
+<p>After Batch 2,</p>
+<p>instead of replacing it,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Gradient = 2 + 3 = 5</pre></div>
+<p>After Batch 3,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Gradient = 5 + 4 = 9</pre></div>
+<p>The gradients keep accumulating.</p>
+<p>As a result,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">optimizer.step()</pre></div>
+<p>updates the weights using these accumulated gradients, producing <strong>larger-than-intended updates</strong>.</p>
+<blockquote>
+<p><strong>Option A ✅ :</strong> Gradients from previous batches will accumulate, leading to larger-than-intended updates.</p>
+</blockquote>
+<p>This is exactly what happens when <code>optimizer.zero_grad()</code> is omitted.</p>
+<p>✅ <strong>Option A is Correct.</strong></p>
+<blockquote>
+<p><strong>Option B ❌ :</strong> The code will not run at all due to a missing statement in the training loop.</p>
+</blockquote>
+<p>The code <strong>will run</strong>.</p>
+<p>It simply produces incorrect training because the gradients are never cleared.</p>
+<blockquote>
+<p><strong>Option C ❌ :</strong> The effective learning rate will increase exponentially due to gradient accumulation.</p>
+</blockquote>
+<p>The learning rate itself never changes.</p>
+<p>The updates become larger because the gradients accumulate, <strong>not</strong> because the learning rate increases.</p>
+<p>Also, the increase is <strong>not necessarily exponential</strong>.</p>
+<blockquote>
+<p><strong>Option D ❌ :</strong> Training will happen stably as usual.</p>
+</blockquote>
+<p>Training is usually unstable because gradients from multiple batches are added together.</p>
+<p>💡 <strong>Easy Intuition</strong></p>
+<p>Imagine you are writing numbers on a whiteboard.</p>
+<p>Without erasing:</p>
+<div class="codewrap"><pre class="code" data-lang="text">Batch 1
+
+2</pre></div>
+<p>Next batch:</p>
+<div class="codewrap"><pre class="code" data-lang="text">2 + 3 = 5</pre></div>
+<p>Next batch:</p>
+<div class="codewrap"><pre class="code" data-lang="text">5 + 4 = 9</pre></div>
+<p>The numbers keep growing.</p>
+<p><code>optimizer.zero_grad()</code> is like <strong>erasing the whiteboard</strong> before writing the gradient for the next batch.</p>
+<p>Without erasing, old gradients remain, leading to incorrect weight updates.</p>
+<p><strong>No clue?</strong> Read the loop line by line and ask of each line: <em>where</em> is it (which loop), and <em>what</em> does it change (gradients, weights, or nothing)? <code>print</code> sits in the outer loop, so it sees whatever <code>loss</code> was last assigned; <code>zero_grad</code> clears <code>.grad</code>; <code>backward</code> fills <code>.grad</code>; only <code>step</code> changes weights.</p>
+</div></div>
+<div class="pq" data-answer="A, B" data-type="multi" data-tag="Practice"><div class="pq-q"><p>Consider the following training loop:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">for epoch in range(5):
+    for i in range(0, 32, 8):
+
+        xb, yb = X[i:i+8], y[i:i+8]
+
+        output = model(xb)
+
+        loss = criterion(output, yb)
+
+        loss.backward()
+
+        optimizer.step()</pre></div>
+<p>Notice that <code>optimizer.zero_grad()</code> is missing.</p>
+<p>Suppose we insert <code>optimizer.zero_grad()</code> in different places.</p>
+<p>Which of the following statements is/are correct?</p>
+</div><ol class="pq-opts"><li>Without <code>optimizer.zero_grad()</code>, gradients accumulate across mini-batches, leading to unstable training (not standard SGD).</li><li>Placing <code>optimizer.zero_grad()</code> inside the inner loop makes it proper mini-batch SGD with batch size = 8.</li><li>Placing <code>optimizer.zero_grad()</code> only once before the inner loop makes it equivalent to full-batch gradient descent on 32 samples.</li><li>The final parameter updates will always be the same, regardless of where <code>zero_grad()</code> is placed.</li></ol><div class="pq-why"><p>Before solving the question, let's understand the important functions.</p>
+<ul>
+<li>
+<p><strong><code>loss.backward()</code></strong></p>
+<p>Computes the gradients of the loss with respect to all trainable parameters.</p>
+<p>These gradients are stored in each parameter's <code>.grad</code>.</p>
+</li>
+<li>
+<p><strong><code>optimizer.step()</code></strong></p>
+<p>Uses the stored gradients to update the model's weights.</p>
+</li>
+<li>
+<p><strong><code>optimizer.zero_grad()</code></strong></p>
+<p>Clears all previously stored gradients.</p>
+<p>PyTorch <strong>does not automatically clear gradients</strong> after each batch.</p>
+</li>
+</ul>
+<p>The dataset contains</p>
+<div class="codewrap"><pre class="code" data-lang="text">32 samples</pre></div>
+<p>The loop processes</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">range(0, 32, 8)</pre></div>
+<p>which means</p>
+<div class="codewrap"><pre class="code" data-lang="text">Batch 1 : samples 0–7
+
+Batch 2 : samples 8–15
+
+Batch 3 : samples 16–23
+
+Batch 4 : samples 24–31</pre></div>
+<p>So each mini-batch contains</p>
+<div class="codewrap"><pre class="code" data-lang="text">8 samples.</pre></div>
+<blockquote>
+<p><strong>Option A ✅ :</strong> Without <code>optimizer.zero_grad()</code>, gradients accumulate across mini-batches, leading to unstable training (not standard SGD).</p>
+</blockquote>
+<p>This is correct.</p>
+<p>Without</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">optimizer.zero_grad()</pre></div>
+<p>the gradients from one mini-batch remain stored.</p>
+<p>When the next batch calls</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">loss.backward()</pre></div>
+<p>the new gradients are <strong>added</strong> to the previous ones.</p>
+<p>For example,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Batch 1 Gradient
+
+2</pre></div>
+<p>After Batch 2,</p>
+<div class="codewrap"><pre class="code" data-lang="text">2 + 3 = 5</pre></div>
+<p>After Batch 3,</p>
+<div class="codewrap"><pre class="code" data-lang="text">5 + 4 = 9</pre></div>
+<p>The gradients continue accumulating, leading to larger-than-intended weight updates.</p>
+<p>Therefore, this is <strong>not</strong> standard mini-batch SGD.</p>
+<p>✅ <strong>Option A is Correct.</strong></p>
+<blockquote>
+<p><strong>Option B ✅ :</strong> Placing <code>optimizer.zero_grad()</code> inside the inner loop makes it proper mini-batch SGD with batch size = 8.</p>
+</blockquote>
+<p>Suppose we write</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">for epoch in range(5):
+    for i in range(0, 32, 8):
+
+        optimizer.zero_grad()
+
+        output = model(xb)
+
+        loss.backward()
+
+        optimizer.step()</pre></div>
+<p>Now, before processing each mini-batch,</p>
+<p>the previous gradients are cleared.</p>
+<p>Each weight update is based <strong>only on the current batch of 8 samples</strong>.</p>
+<p>This is exactly how <strong>mini-batch SGD</strong> is normally implemented.</p>
+<p>✅ <strong>Option B is Correct.</strong></p>
+<blockquote>
+<p><strong>Option C ❌ :</strong> Placing <code>optimizer.zero_grad()</code> only once before the inner loop makes it equivalent to full-batch gradient descent on 32 samples.</p>
+</blockquote>
+<p>The course's answer key marks this correct, but as written it is <strong>not</strong>. The option only moves <code>zero_grad()</code>; <code>optimizer.step()</code> is still <em>inside</em> the inner loop, so each epoch does</p>
+<div class="codewrap"><pre class="code" data-lang="text">clear
+batch 1: backward → .grad = g₁               → step with g₁
+batch 2: backward → .grad = g₁ + g₂          → step with g₁ + g₂
+batch 3: backward → .grad = g₁ + g₂ + g₃     → step with g₁ + g₂ + g₃
+batch 4: backward → .grad = g₁ + … + g₄      → step with g₁ + … + g₄</pre></div>
+<p>Four updates per epoch with ever-growing sums of gradients, each computed at different weights: that is neither mini-batch SGD nor full-batch gradient descent.</p>
+<p>It becomes full-batch gradient descent only if <code>optimizer.step()</code> is <strong>also</strong> moved out of the inner loop, so there is one update per epoch. Even then there is a detail: each batch's loss is a <em>mean</em> over 8 examples, so the accumulated gradient <span class="tex">g_1 + g_2 + g_3 + g_4</span> is <strong>4 times</strong> the gradient of the mean loss over all 32. It is full-batch gradient descent with a 4× larger learning rate (or divide each batch loss by 4 to match exactly). The cell after this question checks all of this numerically.</p>
+<blockquote>
+<p><strong>Option D ❌ :</strong> The final parameter updates will always be the same, regardless of where <code>zero_grad()</code> is placed.</p>
+</blockquote>
+<p>Incorrect.</p>
+<p>Where <code>optimizer.zero_grad()</code> is placed changes</p>
+<ul>
+<li>which gradients are used,</li>
+<li>how many gradients are accumulated,</li>
+<li>and how often the weights are updated.</li>
+</ul>
+<p>Therefore, different placements produce different training behavior.</p>
+<p>💡 <strong>Easy Way to Remember</strong></p>
+<p>There are three common cases.</p>
+<p><strong>Case 1 — No <code>zero_grad()</code></strong></p>
+<div class="codewrap"><pre class="code" data-lang="text">Batch 1
+
+↓
+
+Batch 2
+
+↓
+
+Batch 3
+
+↓
+
+Gradients keep accumulating</pre></div>
+<p>Not standard training.</p>
+<p><strong>Case 2 — <code>zero_grad()</code> before every mini-batch</strong></p>
+<div class="codewrap"><pre class="code" data-lang="text">Clear
+
+↓
+
+Batch 1
+
+↓
+
+Update
+
+↓
+
+Clear
+
+↓
+
+Batch 2
+
+↓
+
+Update</pre></div>
+<p>This is <strong>Mini-Batch SGD</strong>.</p>
+<p><strong>Case 3 — <code>zero_grad()</code> once before all mini-batches, and <code>step()</code> once after them</strong></p>
+<div class="codewrap"><pre class="code" data-lang="text">Clear
+
+↓
+
+Batch 1
+
+↓
+
+Batch 2
+
+↓
+
+Batch 3
+
+↓
+
+Batch 4
+
+↓
+
+One Update</pre></div>
+<p>This behaves like <strong>Full-Batch Gradient Descent</strong> (with the gradient summed over the 4 batches, i.e. a 4× learning rate). Without moving <code>step()</code> out as well, it is not.</p>
+<p><strong>No clue?</strong> Write out what <code>.grad</code> holds at each <code>step()</code> for each placement, as in the table under option C. If two placements give different sequences of updates, they cannot be equivalent.</p>
+</div></div>
+<p>Checking the claims about option C numerically: the same model and data, trained for 5 epochs with each placement, against true full-batch gradient descent.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import copy
+torch.manual_seed(0)
+Xq, yq = torch.randn(32, 3), torch.randn(32, 1)
+base, crit = nn.Linear(3, 1), nn.MSELoss()
+
+def train(placement, lr=0.05):
+    m = copy.deepcopy(base); opt = torch.optim.SGD(m.parameters(), lr=lr)
+    for epoch in range(5):
+        if placement != &quot;every batch&quot;: opt.zero_grad()
+        for i in range(0, 32, 8):
+            if placement == &quot;every batch&quot;: opt.zero_grad()
+            crit(m(Xq[i:i+8]), yq[i:i+8]).backward()
+            if placement != &quot;once, step after&quot;: opt.step()
+        if placement == &quot;once, step after&quot;: opt.step()
+    return torch.cat([p.detach().flatten() for p in m.parameters()])
+
+def full_batch(lr):
+    m = copy.deepcopy(base); opt = torch.optim.SGD(m.parameters(), lr=lr)
+    for epoch in range(5):
+        opt.zero_grad(); crit(m(Xq), yq).backward(); opt.step()
+    return torch.cat([p.detach().flatten() for p in m.parameters()])
+
+for placement in [&quot;once, step inside (option C as written)&quot;, &quot;once, step after&quot;]:
+    w = train(placement.split(&quot; (&quot;)[0])
+    print(f&quot;{placement:42s} = full batch: {torch.allclose(w, full_batch(0.05), atol=1e-6)}   = full batch with 4× lr: {torch.allclose(w, full_batch(0.2), atol=1e-6)}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>once, step inside (option C as written)    = full batch: False   = full batch with 4× lr: False
+once, step after                           = full batch: False   = full batch with 4× lr: True</pre></div></div></div>
+<h3 id="4-the-training-and-testing-loops-learning-rate-schedules">Learning-rate schedules</h3>
+<p>A <strong>scheduler</strong> changes the optimiser's learning rate as training goes on: big steps early, small steps to settle in (note 06). You call <code>scheduler.step()</code> once per epoch, after the epoch's <code>optimizer.step()</code> calls. <code>StepLR(optimizer, step_size, gamma)</code> multiplies the rate by <code>gamma</code> every <code>step_size</code> epochs:</p>
+<div class="tex-d">\eta_{\text{epoch}} = \eta_0 \cdot \gamma^{\lfloor \text{epoch} / \text{step\_size} \rfloor}</div>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch.optim as optim
+m = nn.Linear(1, 1)
+opt = optim.SGD(m.parameters(), lr=0.1)
+schedulers = {&quot;StepLR(step_size=5, gamma=0.5)&quot;: optim.lr_scheduler.StepLR(opt, step_size=5, gamma=0.5)}
+lrs = []
+for epoch in range(20):
+    lrs.append(opt.param_groups[0][&quot;lr&quot;])
+    opt.step()                                   # (a real loop trains here)
+    schedulers[&quot;StepLR(step_size=5, gamma=0.5)&quot;].step()
+opt2 = optim.SGD(m.parameters(), lr=0.1)
+cos = optim.lr_scheduler.CosineAnnealingLR(opt2, T_max=20)
+lrs_cos = []
+for epoch in range(20):
+    lrs_cos.append(opt2.param_groups[0][&quot;lr&quot;]); opt2.step(); cos.step()
+plt.figure(figsize=(7, 3.2))
+plt.step(range(20), lrs, where=&quot;post&quot;, label=&quot;StepLR(step_size=5, gamma=0.5)&quot;)
+plt.plot(range(20), lrs_cos, label=&quot;CosineAnnealingLR(T_max=20)&quot;)
+plt.xlabel(&quot;epoch&quot;); plt.ylabel(&quot;learning rate&quot;); plt.legend(); plt.grid(alpha=0.3); plt.show()
+print(&quot;StepLR rates:&quot;, [round(v, 4) for v in lrs])</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/12_pytorch_workflow-06.png" alt="plot" loading="lazy"></div><div class="orow"><pre>StepLR rates: [0.1, 0.1, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05, 0.05, 0.05, 0.025, 0.025, 0.025, 0.025, 0.025, 0.0125, 0.0125, 0.0125, 0.0125, 0.0125]</pre></div></div></div>
+<div class="pq" data-answer="0.0025" data-type="num" data-tol="0.00005" data-tag="Practice"><div class="pq-q"><p>Consider the following code snippet:</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+scheduler = optim.lr_scheduler.StepLR(
+    optimizer,
+    step_size=5,
+    gamma=0.5
+)
+
+lrs = []
+
+for epoch in range(12):
+
+    lrs.append(optimizer.param_groups[0][&#x27;lr&#x27;])
+
+    scheduler.step()</pre></div>
+<p>What is the learning rate after <strong>epoch 10</strong>? (Round to <strong>4 decimal places</strong>)</p>
+</div><div class="pq-why"><p>Before solving the question, let's understand the important terms.</p>
+<ul>
+<li>
+<p><strong>Learning Rate (lr)</strong></p>
+<p>The learning rate controls <strong>how much the model's weights are updated</strong> after each training step.</p>
+</li>
+<li>
+<p><strong>Learning Rate Scheduler</strong></p>
+<p>A scheduler automatically changes the learning rate during training.</p>
+</li>
+<li>
+<p><strong>StepLR</strong></p>
+<p><code>StepLR</code> reduces the learning rate <strong>after a fixed number of epochs</strong>.</p>
+</li>
+</ul>
+<p>Its syntax is</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">StepLR(
+    optimizer,
+    step_size,
+    gamma
+)</pre></div>
+<p>where</p>
+<ul>
+<li><code>step_size</code> → Number of epochs after which the learning rate is reduced.</li>
+<li><code>gamma</code> → The factor by which the learning rate is multiplied.</li>
+</ul>
+<p>In this question,</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">lr = 0.01</pre></div>
+<p>Initial learning rate</p>
+<div class="codewrap"><pre class="code" data-lang="text">0.01</pre></div>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">step_size = 5</pre></div>
+<p>Every <strong>5 epochs</strong>, the learning rate is reduced.</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">gamma = 0.5</pre></div>
+<p>Whenever it is reduced,</p>
+<div class="codewrap"><pre class="code" data-lang="text">New LR = Old LR × 0.5</pre></div>
+<p>which means the learning rate becomes <strong>half</strong> of its previous value.</p>
+<p>Now let's track the learning rate.</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:right">Epoch</th>
+<th style="text-align:right">Learning Rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0.0100</td>
+</tr>
+<tr>
+<td style="text-align:right">1</td>
+<td style="text-align:right">0.0100</td>
+</tr>
+<tr>
+<td style="text-align:right">2</td>
+<td style="text-align:right">0.0100</td>
+</tr>
+<tr>
+<td style="text-align:right">3</td>
+<td style="text-align:right">0.0100</td>
+</tr>
+<tr>
+<td style="text-align:right">4</td>
+<td style="text-align:right">0.0100</td>
+</tr>
+<tr>
+<td style="text-align:right">5</td>
+<td style="text-align:right">0.0050</td>
+</tr>
+<tr>
+<td style="text-align:right">6</td>
+<td style="text-align:right">0.0050</td>
+</tr>
+<tr>
+<td style="text-align:right">7</td>
+<td style="text-align:right">0.0050</td>
+</tr>
+<tr>
+<td style="text-align:right">8</td>
+<td style="text-align:right">0.0050</td>
+</tr>
+<tr>
+<td style="text-align:right">9</td>
+<td style="text-align:right">0.0050</td>
+</tr>
+<tr>
+<td style="text-align:right">10</td>
+<td style="text-align:right">0.0025</td>
+</tr>
+<tr>
+<td style="text-align:right">11</td>
+<td style="text-align:right">0.0025</td>
+</tr>
+</tbody>
+</table></div>
+<p>Explanation:</p>
+<ul>
+<li>At <strong>epoch 5</strong>, the learning rate is halved.</li>
+</ul>
+<div class="tex-d">0.01 \times 0.5 = 0.005</div>
+<ul>
+<li>At <strong>epoch 10</strong>, it is halved again.</li>
+</ul>
+<div class="tex-d">0.005 \times 0.5 = 0.0025</div>
+<p>Therefore, after <strong>epoch 10</strong>, the learning rate is</p>
+<div class="tex-d">\boxed{0.0025}</div>
+<p>💡 <strong>Easy Way to Remember</strong></p>
+<p><code>StepLR</code> follows this rule:</p>
+<div class="codewrap"><pre class="code" data-lang="text">Every step_size epochs
+
+↓
+
+Multiply learning rate by gamma</pre></div>
+<p>For this question,</p>
+<div class="codewrap"><pre class="code" data-lang="text">Initial LR
+
+0.0100
+
+      │
+      ▼
+
+After 5 epochs
+
+0.0050
+
+      │
+      ▼
+
+After 10 epochs
+
+0.0025</pre></div>
+<p>So the final answer is</p>
+<div class="tex-d">\boxed{0.0025}</div>
+<p><strong>No clue?</strong> Use the formula above the question, <span class="tex">\eta = \eta_0 \gamma^{\lfloor \text{epoch}/\text{step\_size} \rfloor}</span>: <span class="tex">0.01 \cdot 0.5^{\lfloor 10/5 \rfloor} = 0.01 \cdot 0.25 = 0.0025</span>. Or run the snippet in a <strong>+ cell</strong> with any small model and print <code>lrs</code>.</p>
+</div></div>
+<div class="donebar"><button class="donebtn" data-done="4-the-training-and-testing-loops">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="a-classifier-end-to-end" data-num="06" data-title="A classifier end to end">
+<h2><span class="num">06</span> A classifier end to end</h2>
+<p>The same loop on a tiny classification problem: will a team win (1) or not (0), from two features, its average goals scored and its opponent's average goals conceded. The model ends in a sigmoid, so it outputs a probability and pairs with <code>nn.BCELoss</code>; the targets must be <code>float32</code> for BCE.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">X_cls = torch.tensor([[3.0, 0.5], [1.0, 1.0], [0.5, 2.0], [2.0, 1.5], [3.5, 3.0], [2.0, 2.5],
+                      [1.5, 1.0], [0.5, 0.5], [2.5, 0.8], [2.1, 2.0], [1.2, 0.5], [0.7, 1.5]])
+y_cls = torch.tensor([[1], [0], [0], [1], [1], [0], [1], [0], [1], [0], [1], [0]], dtype=torch.float32)
+
+torch.manual_seed(0)
+clf = nn.Sequential(nn.Linear(2, 10), nn.ReLU(), nn.Linear(10, 1), nn.Sigmoid())
+criterion = nn.BCELoss()
+opt = torch.optim.Adam(clf.parameters(), lr=0.1)
+
+for epoch in range(50):
+    clf.train()
+    opt.zero_grad()
+    loss = criterion(clf(X_cls), y_cls)       # the whole dataset is one batch here
+    loss.backward()
+    opt.step()
+    if (epoch + 1) % 10 == 0:
+        print(f&quot;epoch {epoch + 1:2d}  loss {loss.item():.4f}&quot;)
+
+clf.eval()
+with torch.inference_mode():
+    probs = clf(X_cls)
+pred = (probs &gt; 0.5).float()
+print(&quot;accuracy on the training set:&quot;, (pred == y_cls).float().mean().item())
+print(&quot;a new match, scored 2.8 / conceded 0.6 → P(win) =&quot;, round(clf(torch.tensor([[2.8, 0.6]])).item(), 3))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>epoch 10  loss 0.2319
+epoch 20  loss 0.0538
+epoch 30  loss 0.0162
+epoch 40  loss 0.0072
+epoch 50  loss 0.0043
+accuracy on the training set: 1.0
+a new match, scored 2.8 / conceded 0.6 → P(win) = 1.0</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="a-classifier-end-to-end">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="5-evaluating" data-num="07" data-title="5 · Evaluating">
+<h2><span class="num">07</span> 5 · Evaluating</h2>
+<p>After training, evaluate in <code>eval()</code> mode under <code>inference_mode()</code>. For regression, report errors in the units of the target:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">model_0.eval()
+with torch.inference_mode():
+    y_preds = model_0(X_test)
+    mae = torch.mean(torch.abs(y_preds - y_test))
+    rmse = torch.sqrt(torch.mean((y_preds - y_test) ** 2))
+print(f&quot;MAE {mae:.4f}   RMSE {rmse:.4f}   (targets range {y_test.min():.2f} to {y_test.max():.2f})&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>MAE 0.0116   RMSE 0.0116   (targets range 0.86 to 0.99)</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="5-evaluating">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="6-saving-and-loading" data-num="08" data-title="6 · Saving and loading">
+<h2><span class="num">08</span> 6 · Saving and loading</h2>
+<p>Save the <strong><code>state_dict</code></strong>: an ordered dictionary of every parameter (and buffer) by name. It is just tensors, so it is small and loads into any instance of the same class. (Saving the whole model object with <code>torch.save(model)</code> also works but ties the file to your exact code and folder layout.)</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Call</th>
+<th style="text-align:left">Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>torch.save(obj, path)</code></td>
+<td style="text-align:left">writes any Python object of tensors to disk (pickle)</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>torch.load(path, weights_only=True)</code></td>
+<td style="text-align:left">reads it back; <code>weights_only=True</code> refuses arbitrary code, so use it for files you did not make</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>model.load_state_dict(state_dict)</code></td>
+<td style="text-align:left">copies saved parameters into a model</td>
+</tr>
+</tbody>
+</table></div>
+<div class="codewrap pyc"><pre class="code" data-lang="python">from pathlib import Path
+MODEL_PATH = Path(&quot;models&quot;); MODEL_PATH.mkdir(exist_ok=True)      # workspace/models, next to the data
+MODEL_SAVE_PATH = MODEL_PATH / &quot;01_pytorch_workflow_model_0.pth&quot;
+torch.save(obj=model_0.state_dict(), f=MODEL_SAVE_PATH)
+print(f&quot;saved {MODEL_SAVE_PATH} ({MODEL_SAVE_PATH.stat().st_size} bytes):&quot;, torch.load(MODEL_SAVE_PATH, weights_only=True))
+
+loaded_model_0 = LinearRegressionModel()                          # fresh random parameters …
+loaded_model_0.load_state_dict(torch.load(MODEL_SAVE_PATH, weights_only=True))   # … replaced by the saved ones
+loaded_model_0.eval()
+with torch.inference_mode():
+    loaded_preds = loaded_model_0(X_test)
+print(&quot;loaded model predicts exactly the same:&quot;, torch.equal(loaded_preds, y_preds))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>saved models\01_pytorch_workflow_model_0.pth (2117 bytes): OrderedDict({&#x27;weights&#x27;: tensor([0.7060]), &#x27;bias&#x27;: tensor([0.3063])})
+loaded model predicts exactly the same: True</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="6-saving-and-loading">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="putting-it-all-together-on-the-gpu" data-num="09" data-title="Putting it all together, on the GPU">
+<h2><span class="num">09</span> Putting it all together, on the GPU</h2>
+<p>The whole workflow again, the way you will write it from now on: device-agnostic, with <code>nn.Linear</code> instead of hand-made parameters, and the model and the data on the same device. With 40 examples the whole training set fits in one batch, so there is no DataLoader here.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">device = &quot;cuda&quot; if torch.cuda.is_available() else &quot;cpu&quot;
+
+class LinearRegressionModelV2(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.linear_layer = nn.Linear(in_features=1, out_features=1)
+    def forward(self, x):
+        return self.linear_layer(x)
+
+torch.manual_seed(42)
+model_1 = LinearRegressionModelV2().to(device)               # parameters move to the GPU
+X_train_d, y_train_d, X_test_d, y_test_d = (t.to(device) for t in (X_train, y_train, X_test, y_test))
+print(&quot;model on&quot;, next(model_1.parameters()).device, &quot;· data on&quot;, X_train_d.device)
+
+loss_fn = nn.L1Loss()
+optimizer = torch.optim.SGD(model_1.parameters(), lr=0.01)
+for epoch in range(1000):
+    model_1.train()
+    loss = loss_fn(model_1(X_train_d), y_train_d)
+    optimizer.zero_grad(); loss.backward(); optimizer.step()
+    if epoch % 200 == 0 or epoch == 999:
+        model_1.eval()
+        with torch.inference_mode():
+            test_loss = loss_fn(model_1(X_test_d), y_test_d)
+        print(f&quot;epoch {epoch:4d} | train {loss.item():.5f} | test {test_loss.item():.5f}&quot;)
+print(&quot;learned:&quot;, {k: round(v.item(), 4) for k, v in model_1.state_dict().items()})</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>model on cuda:0 · data on cuda:0
+epoch    0 | train 0.55518 | test 0.57398
+epoch  200 | train 0.00126 | test 0.01380
+epoch  400 | train 0.00126 | test 0.01380
+epoch  600 | train 0.00126 | test 0.01380
+epoch  800 | train 0.00126 | test 0.01380
+epoch  999 | train 0.01026 | test 0.00033
+learned: {&#x27;linear_layer.weight&#x27;: 0.6968, &#x27;linear_layer.bias&#x27;: 0.3025}</pre></div></div></div>
+<div class="codewrap pyc"><pre class="code" data-lang="python">model_1.eval()
+with torch.inference_mode():
+    y_preds_1 = model_1(X_test_d)
+plot_predictions(predictions=y_preds_1.cpu())                 # matplotlib needs CPU tensors
+
+path = MODEL_PATH / &quot;01_pytorch_workflow_model_1.pth&quot;
+torch.save(model_1.state_dict(), path)
+loaded_model_1 = LinearRegressionModelV2().to(device)
+loaded_model_1.load_state_dict(torch.load(path, weights_only=True))
+loaded_model_1.eval()
+with torch.inference_mode():
+    print(&quot;saved and reloaded on&quot;, device, &quot;→ identical predictions:&quot;, torch.equal(loaded_model_1(X_test_d), y_preds_1))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow plot"><img src="images/out/12_pytorch_workflow-07.png" alt="plot" loading="lazy"></div><div class="orow"><pre>saved and reloaded on cuda → identical predictions: True</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="putting-it-all-together-on-the-gpu">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="summary" data-num="10" data-title="Summary">
+<h2><span class="num">10</span> Summary</h2>
+<ul>
+<li><strong>Data:</strong> tensors shaped <code>(examples, features)</code>, split into train / (validation) / test, served in shuffled mini-batches by a <code>DataLoader</code>.</li>
+<li><strong>Model:</strong> an <code>nn.Module</code> with layers in <code>__init__</code> and the computation in <code>forward</code>; <code>nn.Linear</code> and <code>nn.Sequential</code> do most of the work.</li>
+<li><strong>Loss and optimiser:</strong> match the loss to the output (regression: MSE/L1; binary: BCE or BCE-with-logits; multi-class: cross-entropy on raw logits), and pick an optimiser and learning rate.</li>
+<li><strong>Training loop:</strong> forward → loss → <code>zero_grad</code> → <code>backward</code> → <code>step</code>, once per batch; then evaluate with <code>eval()</code> + <code>inference_mode()</code>.</li>
+<li><strong>Keep it:</strong> <code>torch.save(model.state_dict())</code>, <code>load_state_dict(torch.load(..., weights_only=True))</code>.</li>
+<li><strong>Device:</strong> one <code>device</code> variable; the model <strong>and</strong> every batch on it.</li>
+</ul>
+<p>The next subject (D4) keeps this exact loop and swaps the model for a convolutional network and the data for images.</p>
+<div class="donebar"><button class="donebtn" data-done="summary">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="11_autograd_numpy_gpu.html"><small>← Previous</small>Autograd, NumPy and the GPU</a><a class="next" href="index.html"><small>Back to →</small>PyTorch index</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>

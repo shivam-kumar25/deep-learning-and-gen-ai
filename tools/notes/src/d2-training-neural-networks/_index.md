@@ -9,5 +9,5 @@ Part **D2** of the course: notes 05–09. Every code cell runs on a live Python 
 {{cards:note}}
 
 :::tip
-Previous: **[D1: Neural Network Foundations](../d1-neural-network-foundations/index.html)**. Next: **D3: PyTorch**.
+Previous: **[D1: Neural Network Foundations](../d1-neural-network-foundations/index.html)**. Next: **[D3: PyTorch](../d3-pytorch/index.html)**.
 :::

@@ -18,11 +18,11 @@ os.makedirs(spec["src"], exist_ok=True)
 slides = os.path.join(spec["notes_dir"], "images", "slides")
 report = []
 
-FIG = re.compile(r'(?:<div align="center">\s*)?<figure><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"[^>]*></figure>\s*(?:<br\s*/?>\s*)?(?:<em>(?P<cap>.*?)</em>)?\s*(?:</div>)?', re.S)
+FIG = re.compile(r'(?:<div align="center">\s*)?<figure><img src="(?P<src>[^"]+)" alt="(?P<alt>[^"]*)"[^>]*>(?:<figcaption>(?P<cap2>.*?)</figcaption>)?</figure>\s*(?:<br\s*/?>\s*)?(?:<em>(?P<cap>.*?)</em>)?\s*(?:</div>)?', re.S)
 
 
 def figure(m, stem):
-    src, alt, cap = unquote(m.group("src")), m.group("alt"), (m.group("cap") or "").strip()
+    src, alt, cap = unquote(m.group("src")), m.group("alt"), (m.group("cap") or m.group("cap2") or "").strip()
     name = os.path.basename(src)
     what = DECIDE.get(name)
     if what is None:
@@ -46,6 +46,10 @@ for stem, meta in spec["pages"].items():
     fm, body = re.match(r"---\n(.*?)\n---\n(.*)", t, re.S).groups()
     title = re.search(r"^title:\s*(.*)$", fm, re.M).group(1).strip()
     body = FIG.sub(lambda m: figure(m, stem), body)
+    # this course's cells run on the live kernel, which has PyTorch: "not available in the browser" cells become runnable
+    body = re.sub(r'```python norun="Uses a library that is not available in the browser\'s Python\.[^"]*"', "```python", body)
+    body = re.sub(r'```python norun="Needs data that a cell above loads outside the browser\.[^"]*"', "```python", body)
+    body = re.sub(r"```python +\n", "```python\n", body)
     # the italic opening line is the note's lead
     lead = ""
     m = re.match(r"\s*\*([^*\n][^\n]*?)\*\s*\n", body)

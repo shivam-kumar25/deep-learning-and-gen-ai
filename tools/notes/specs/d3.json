@@ -1,0 +1,6 @@
+{"subject": "pytorch", "out": "tools/notes/.tmp/conv/d3",
+ "pages": [
+  {"parts": [{"nb": "Pytorch_Fundamentals.ipynb", "cells": [0, 180]}], "stem": "10_tensors", "kind": "note", "run": true},
+  {"parts": [{"nb": "Pytorch_Fundamentals.ipynb", "cells": [181, 244], "heading": "# Autograd, NumPy and the GPU"}], "stem": "11_autograd_numpy_gpu", "kind": "note", "run": true, "title": "Autograd, NumPy and the GPU"},
+  {"nb": "Pytorch_Workflow.ipynb", "stem": "12_pytorch_workflow", "kind": "note", "run": true}
+ ]}

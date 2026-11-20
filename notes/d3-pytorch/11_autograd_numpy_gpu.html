@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autograd, NumPy and the GPU · PyTorch · ML Notes</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="../assets/notes.css">
+</head>
+<body data-subject="dld3-" data-page="11_autograd_numpy_gpu">
+<div class="progress" id="progress"></div>
+<header class="topbar">
+  <button class="iconbtn" id="menuBtn" aria-label="Contents">☰</button>
+  <div class="crumbs"><a href="../index.html">ML</a> · <a href="index.html">PyTorch</a> · <b>Autograd, NumPy and the GPU</b></div>
+  <div class="spacer"></div>
+  <span class="pill" id="readTime"></span>
+  <button class="iconbtn" id="themeBtn" title="Toggle light / dark">🌗</button>
+</header>
+<div class="layout">
+<aside class="toc" id="toc">
+  <h4>On this page</h4>
+  <nav id="tocNav"></nav>
+  <div class="meter">
+    <div><b id="doneCount">0</b> / <span id="doneTotal">0</span> sections understood</div>
+    <div class="bar"><i id="doneBar"></i></div>
+    <div style="margin-top:10px" hidden>❓ Practice: <b id="pqTally">0 / 0</b> correct</div>
+  </div>
+</aside>
+<main><div class="content">
+<div class="hero"><div class="js-badge">🔥</div><div class="eyebrow">PyTorch · note 11</div><h1>Autograd, NumPy and the GPU</h1><div class="lead"><p>The rest of what makes PyTorch PyTorch. Autograd computes every gradient for you; tensors move to and from NumPy; seeds make &quot;random&quot; repeatable; and <code>.to(device)</code> puts the work on the GPU. Then the three errors you will meet most (shape, dtype, device) and how to read them.</p>
+</div></div>
+<section class="sec" id="autograd-gradients-for-free" data-num="01" data-title="Autograd: gradients for free">
+<h2><span class="num">01</span> Autograd: gradients for free</h2>
+<p>Training needs <span class="tex">\partial L / \partial \theta</span> for every parameter (note 06), and backpropagation computes them with the chain rule (note 07). PyTorch's <strong>autograd</strong> does that bookkeeping for you:</p>
+<ol>
+<li>Mark the tensors you want gradients for with <code>requires_grad=True</code> (a model's parameters already are).</li>
+<li>Compute something from them. As each operation runs, PyTorch records it in a <strong>computation graph</strong>: which tensors went in, which operation, which tensor came out.</li>
+<li>Call <code>.backward()</code> on a <strong>scalar</strong> result. PyTorch walks the graph backwards, applying the chain rule at every node.</li>
+<li>Read the gradients from each leaf tensor's <code>.grad</code>.</li>
+</ol>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import torch
+
+a = torch.tensor(10.0, requires_grad=True)
+b = torch.tensor(20.0, requires_grad=True)
+F = a * b                 # F = ab, recorded in the graph
+F.backward()              # dF/da = b,  dF/db = a
+print(&quot;dF/da =&quot;, a.grad, &quot;   dF/db =&quot;, b.grad)
+print(&quot;F remembers how it was made:&quot;, F.grad_fn)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>dF/da = tensor(20.)    dF/db = tensor(10.)
+F remembers how it was made: &lt;MulBackward0 object at 0x0000023EE87DE650&gt;</pre></div></div></div>
+<p><span class="tex">\partial F / \partial a = b = 20</span> and <span class="tex">\partial F / \partial b = a = 10</span>: each input's gradient is the <em>other</em> input, exactly the product rule.</p>
+<p>A longer chain works the same way: every operation contributes one local derivative, and autograd multiplies them.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">x = torch.tensor(2.0, requires_grad=True)
+u = x ** 2 + 1            # du/dx = 2x = 4
+v = torch.sin(u)          # dv/du = cos(u)
+v.backward()
+print(f&quot;autograd   dv/dx = {x.grad.item():.6f}&quot;)
+print(f&quot;chain rule dv/dx = cos(x²+1)·2x = {(torch.cos(torch.tensor(5.0)) * 4).item():.6f}&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>autograd   dv/dx = 1.134649
+chain rule dv/dx = cos(x²+1)·2x = 1.134649</pre></div></div></div>
+<h3 id="autograd-gradients-for-free-three-rules-worth-knowing">Three rules worth knowing</h3>
+<ul>
+<li><strong>Gradients accumulate.</strong> Each <code>.backward()</code> <em>adds</em> to <code>.grad</code>. That is why every training loop calls <code>optimizer.zero_grad()</code> (or <code>x.grad.zero_()</code>) before the next backward pass.</li>
+<li><strong>Only scalars can start a backward pass</strong> (call <code>loss.backward()</code>, where the loss is one number). For a non-scalar <code>y</code>, you would have to pass a vector, <code>y.backward(v)</code>; in practice you reduce to a scalar first (<code>y.sum()</code>, <code>y.mean()</code>).</li>
+<li><strong>Turn tracking off when you don't need it.</strong> Recording the graph costs memory. Wrap evaluation and inference in <code>with torch.no_grad():</code> (or <code>torch.inference_mode()</code>), and use <code>t.detach()</code> to get a copy that is cut off from the graph (needed before <code>.numpy()</code> on a tensor that requires grad).</li>
+</ul>
+<div class="codewrap pyc"><pre class="code" data-lang="python">w = torch.tensor(3.0, requires_grad=True)
+for step in range(3):
+    loss = (w * 2) ** 2
+    loss.backward()
+    print(f&quot;after backward {step + 1}: w.grad = {w.grad.item()}&quot;)   # 24, 48, 72: it accumulates
+w.grad.zero_()
+print(&quot;after zero_():&quot;, w.grad.item())
+
+with torch.no_grad():
+    y = w * 2
+print(&quot;inside no_grad: y.requires_grad =&quot;, y.requires_grad)
+print(&quot;detach:&quot;, (w * 2).detach().requires_grad, &quot; → safe to call .numpy():&quot;, (w * 2).detach().numpy())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>after backward 1: w.grad = 24.0
+after backward 2: w.grad = 48.0
+after backward 3: w.grad = 72.0
+after zero_(): 0.0
+inside no_grad: y.requires_grad = False
+detach: False  → safe to call .numpy(): 6.0</pre></div></div></div>
+<div class="pq" data-answer="12" data-type="num" data-tol="0" data-tag="Practice"><div class="pq-q"><p>What will happen when you run the following code? Give the number stored in <code>x.grad</code>.</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">import torch
+x = torch.tensor([2.0], requires_grad=True)
+y = x ** 3
+y.backward()
+print(x.grad)</pre></div>
+</div><div class="pq-why"><p><code>y = x³</code>, so autograd computes</p>
+<div class="tex-d">\frac{dy}{dx} = 3x^2 = 3 \cdot 2^2 = 12.</div>
+<p><code>y</code> has one element, so <code>y.backward()</code> is allowed (a one-element tensor counts as a scalar), and the gradient lands in <code>x.grad</code>. The code prints</p>
+<div class="codewrap"><pre class="code" data-lang="text">tensor([12.])</pre></div>
+<p>(a one-element tensor, because <code>x</code> itself was created as <code>[2.0]</code>, shape <code>(1,)</code>).</p>
+<p><strong>No clue?</strong> Forget PyTorch for a moment: <code>x.grad</code> after <code>y.backward()</code> is just <span class="tex">dy/dx</span> evaluated at the current <code>x</code>. Differentiate by hand (<span class="tex">x^3 \to 3x^2</span>), plug in <span class="tex">x = 2</span>. Then confirm it in a <strong>+ cell</strong>.</p>
+</div></div>
+<div class="pq" data-answer="D" data-type="single" data-tag="Practice"><div class="pq-q"><p>What will be printed?</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x = torch.tensor([3.0], requires_grad=True)
+
+y = x * 2
+z = y ** 2
+
+z.backward()
+
+print(x.grad)</pre></div>
+</div><ol class="pq-opts"><li>0</li><li>12.0</li><li>18.0</li><li>24.0</li><li>Error</li></ol><div class="pq-why"><p>This question is about <strong>Automatic Differentiation (Autograd)</strong> in PyTorch.</p>
+<p>Before solving it, let's understand the important functions.</p>
+<ul>
+<li><strong><code>requires_grad=True</code></strong> → Tells PyTorch to keep track of all operations on this tensor so that gradients can be computed later.</li>
+<li><strong>Gradient</strong> → The derivative of the output with respect to a variable. It tells us <strong>how much the output changes when the input changes</strong>.</li>
+<li><strong><code>.backward()</code></strong> → Computes the gradients using <strong>Backpropagation</strong> and stores them in the <code>.grad</code> attribute of every tensor with <code>requires_grad=True</code>.</li>
+</ul>
+<p>Let's execute the code step by step.</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x = torch.tensor([3.0], requires_grad=True)</pre></div>
+<p>We create</p>
+<div class="tex-d">x=3</div>
+<p>and tell PyTorch to track its gradient.</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">y = x * 2</pre></div>
+<p>So,</p>
+<div class="tex-d">y=2x</div>
+<p>Substituting</p>
+<div class="tex-d">x=3,</div>
+<p>we get</p>
+<div class="tex-d">y=6.</div>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">z = y ** 2</pre></div>
+<p>This means</p>
+<div class="tex-d">z=y^2.</div>
+<p>Substituting</p>
+<div class="tex-d">y=6,</div>
+<p>we get</p>
+<div class="tex-d">z=36.</div>
+<p>The computation graph is</p>
+<div class="codewrap"><pre class="code" data-lang="text">x = 3
+   │
+ ×2
+   │
+y = 6
+   │
+Square
+   │
+z = 36</pre></div>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">z.backward()</pre></div>
+<p>Now PyTorch computes <div class="tex-d">\frac{dz}{dx}</div></p>
+<p>We use the <strong>Chain Rule</strong>.</p>
+<p>Since</p>
+<div class="tex-d">z=y^2,</div>
+<p>its derivative is</p>
+<div class="tex-d">\frac{dz}{dy}=2y.</div>
+<p>Since</p>
+<div class="tex-d">y=2x,</div>
+<p>its derivative is <div class="tex-d">\frac{dy}{dx}=2.</div></p>
+<p>Using the Chain Rule, <div class="tex-d">\frac{dz}{dx} = \frac{dz}{dy} \times \frac{dy}{dx}.</div></p>
+<p>Substituting the values,</p>
+<div class="tex-d">=(2y)\times2</div>
+<p>Since</p>
+<div class="tex-d">y=6,</div>
+<div class="tex-d">=(2\times6)\times2</div>
+<div class="tex-d">=12\times2</div>
+<div class="tex-d">=24.</div>
+<p>PyTorch stores this gradient in</p>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">x.grad</pre></div>
+<div class="codewrap" data-label="python"><pre class="code" data-lang="py">print(x.grad)</pre></div>
+<p>prints</p>
+<div class="codewrap"><pre class="code" data-lang="text">tensor([24.])</pre></div>
+<p>or simply</p>
+<div class="codewrap"><pre class="code" data-lang="text">24.0</pre></div>
+<blockquote>
+<p><strong>Option A ❌ :</strong> 0</p>
+</blockquote>
+<p>The gradient is not zero.</p>
+<blockquote>
+<p><strong>Option B ❌ :</strong> 12.0</p>
+</blockquote>
+<p>This is only</p>
+<div class="tex-d">\frac{dz}{dy},</div>
+<p>not</p>
+<div class="tex-d">\frac{dz}{dx}.</div>
+<blockquote>
+<p><strong>Option C ❌ :</strong> 18.0</p>
+</blockquote>
+<p>This value is not obtained from differentiation.</p>
+<blockquote>
+<p><strong>Option D ✅ :</strong> 24.0</p>
+</blockquote>
+<p>Using the Chain Rule,</p>
+<div class="tex-d">\frac{dz}{dx}=24.</div>
+<p>PyTorch stores this in <code>x.grad</code>.</p>
+<p>✅ <strong>Option D is Correct.</strong></p>
+<blockquote>
+<p><strong>Option E ❌ :</strong> Error</p>
+</blockquote>
+<p>There is no error.</p>
+<p>The computation graph is valid, and <code>backward()</code> successfully computes the gradient.</p>
+<p><strong>No clue?</strong> Write the chain as a list of steps, <code>x → y = 2x → z = y²</code>, put the local derivative next to each arrow (2 and 2y), and multiply them at the current values: y = 6, so dz/dx = 2y · 2 = 24. Autograd does exactly this multiplication. Check it in a <strong>+ cell</strong>.</p>
+</div></div>
+<div class="donebar"><button class="donebtn" data-done="autograd-gradients-for-free">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="tensors-and-numpy" data-num="02" data-title="Tensors and NumPy">
+<h2><span class="num">02</span> Tensors and NumPy</h2>
+<p>Data often starts in NumPy (pandas, scikit-learn, image libraries), and plotting usually ends there. Two functions convert:</p>
+<ul>
+<li><a href="https://pytorch.org/docs/stable/generated/torch.from_numpy.html"><code>torch.from_numpy(ndarray)</code></a>: NumPy → tensor.</li>
+<li><a href="https://pytorch.org/docs/stable/generated/torch.Tensor.numpy.html"><code>tensor.numpy()</code></a>: tensor → NumPy (CPU tensors only).</li>
+</ul>
+<p>Both <strong>share memory</strong>: no copy is made, so changing one changes the other. And NumPy's default float is <code>float64</code>, which PyTorch keeps, while PyTorch's default (and what layers expect) is <code>float32</code>: convert with <code>.float()</code>.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import numpy as np
+
+array = np.arange(1.0, 8.0)
+tensor = torch.from_numpy(array)
+print(array.dtype, &quot;→&quot;, tensor.dtype, &quot;   convert for a model:&quot;, tensor.float().dtype)
+array[0] = 100.0
+print(&quot;shared memory:&quot;, tensor[:3])
+
+t = torch.ones(4)
+n = t.numpy()
+t += 1
+print(&quot;tensor → numpy, also shared:&quot;, n)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>float64 → torch.float64    convert for a model: torch.float32
+shared memory: tensor([100.,   2.,   3.], dtype=torch.float64)
+tensor → numpy, also shared: [2. 2. 2. 2.]</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="tensors-and-numpy">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="reproducibility" data-num="03" data-title="Reproducibility">
+<h2><span class="num">03</span> Reproducibility</h2>
+<p>&quot;Random&quot; numbers come from a pseudo-random generator: start it from the same <strong>seed</strong> and it produces the same sequence. Seeding makes experiments repeatable: the same initial weights, the same shuffles, the same results, so a change in the result means a change in your code.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">print(&quot;unseeded, different every run:&quot;, torch.rand(3))
+
+torch.manual_seed(42)
+a = torch.rand(3)
+torch.manual_seed(42)
+b = torch.rand(3)
+print(&quot;seeded twice with 42:&quot;, a, b, &quot;equal:&quot;, torch.equal(a, b))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>unseeded, different every run: tensor([0.1137, 0.0445, 0.8173])
+seeded twice with 42: tensor([0.8823, 0.9150, 0.3829]) tensor([0.8823, 0.9150, 0.3829]) equal: True</pre></div></div></div>
+<p><code>torch.manual_seed</code> seeds the CPU and every GPU. Set it once at the top of a script; to repeat one particular draw, set it again right before it. (Full determinism on a GPU also needs <code>torch.use_deterministic_algorithms(True)</code>, because some fast GPU kernels are not deterministic.)</p>
+<div class="donebar"><button class="donebtn" data-done="reproducibility">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-gpu" data-num="04" data-title="The GPU">
+<h2><span class="num">04</span> The GPU</h2>
+<p>A CPU has a handful of powerful cores built for sequential, branching work. A GPU has thousands of simple cores built to do the <em>same</em> arithmetic on many numbers at once, which is exactly what tensor operations are. <strong>CUDA</strong> is NVIDIA's platform for general computing on its GPUs; PyTorch uses it, together with libraries such as cuBLAS (matrix multiplication) and cuDNN (convolutions).</p>
+<p>This computer's GPU, as the driver reports it:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import subprocess, shutil
+if shutil.which(&quot;nvidia-smi&quot;):
+    print(subprocess.run([&quot;nvidia-smi&quot;, &quot;--query-gpu=name,driver_version,memory.total,memory.used,utilization.gpu&quot;,
+                          &quot;--format=csv&quot;], capture_output=True, text=True).stdout)
+else:
+    print(&quot;nvidia-smi not found: no NVIDIA driver on this machine&quot;)
+print(&quot;PyTorch sees CUDA:&quot;, torch.cuda.is_available(), &quot;· CUDA&quot;, torch.version.cuda, &quot;· cuDNN&quot;, torch.backends.cudnn.version())</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>name, driver_version, memory.total [MiB], memory.used [MiB], utilization.gpu [%]
+NVIDIA GeForce RTX 2050, 610.62, 4096 MiB, 138 MiB, 0 %
+
+PyTorch sees CUDA: True · CUDA 12.8 · cuDNN 91900</pre></div></div></div>
+<h3 id="the-gpu-device-agnostic-code">Device-agnostic code</h3>
+<p>Write the device once and use it everywhere, so the same code runs on a laptop CPU or a GPU:</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">device = &quot;cuda&quot; if torch.cuda.is_available() else &quot;cpu&quot;
+print(&quot;device:&quot;, device, &quot;  GPUs:&quot;, torch.cuda.device_count())
+if device == &quot;cuda&quot;:
+    print(f&quot;memory allocated {torch.cuda.memory_allocated() / 1024**2:.1f} MB of {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>device: cuda   GPUs: 1
+memory allocated 8.1 MB of 4.0 GB</pre></div></div></div>
+<h3 id="the-gpu-moving-tensors-and-models">Moving tensors (and models)</h3>
+<p><code>.to(device)</code> returns a <strong>copy</strong> on that device; reassign to keep it (<code>t = t.to(device)</code>). Models move the same way (<code>model.to(device)</code>, note 12). <code>cuda:0</code> is the first GPU; a second would be <code>cuda:1</code>.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">t = torch.tensor([1, 2, 3])
+t_gpu = t.to(device)
+print(t.device, &quot;→&quot;, t_gpu.device)
+
+try:
+    t_gpu.numpy()                         # NumPy only reads CPU memory
+except TypeError as e:
+    print(&quot;TypeError:&quot;, str(e).split(&quot;.&quot;)[0])
+print(&quot;back to the CPU first:&quot;, t_gpu.cpu().numpy(), &quot;  (t_gpu itself stays on&quot;, t_gpu.device, &quot;)&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>cpu → cuda:0
+TypeError: can&#x27;t convert cuda:0 device type tensor to numpy
+back to the CPU first: [1 2 3]   (t_gpu itself stays on cuda:0 )</pre></div></div></div>
+<p>How much faster? A large matrix multiplication on each device (the first GPU call also pays a one-off start-up cost, so it is warmed up first):</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">import time
+def bench(dev, n=3000, reps=5):
+    A = torch.rand(n, n, device=dev)
+    A @ A
+    if dev == &quot;cuda&quot;: torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    for _ in range(reps): A @ A
+    if dev == &quot;cuda&quot;: torch.cuda.synchronize()       # GPU calls return before the work is done
+    return (time.perf_counter() - t0) / reps
+cpu = bench(&quot;cpu&quot;)
+print(f&quot;CPU: {cpu * 1000:.0f} ms per 3000×3000 matmul&quot;)
+if torch.cuda.is_available():
+    gpu = bench(&quot;cuda&quot;)
+    print(f&quot;GPU: {gpu * 1000:.1f} ms  →  {cpu / gpu:.0f}× faster&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>CPU: 148 ms per 3000×3000 matmul
+GPU: 14.0 ms  →  11× faster</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="the-gpu">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="the-three-common-errors" data-num="05" data-title="The three common errors">
+<h2><span class="num">05</span> The three common errors</h2>
+<p>Almost every PyTorch error you will hit is one of three. Each cell below triggers one, prints the message, and shows the fix.</p>
+<h3 id="the-three-common-errors-shape">Shape</h3>
+<p>Matrix multiplication needs matching inner dimensions (note 10).</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">A = torch.tensor([[1, 2], [3, 4], [5, 6]], dtype=torch.float32)      # (3, 2)
+B = torch.tensor([[7, 10], [8, 11], [9, 12]], dtype=torch.float32)   # (3, 2)
+try:
+    A @ B
+except RuntimeError as e:
+    print(&quot;RuntimeError:&quot;, e)
+print(f&quot;fix: transpose B → {tuple(A.shape)} @ {tuple(B.T.shape)} = {tuple((A @ B.T).shape)}&quot;)
+print(A @ B.T)
+print(&quot;torch.mm is matmul for 2-D tensors:&quot;, torch.equal(torch.mm(A, B.T), A @ B.T))</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>RuntimeError: mat1 and mat2 shapes cannot be multiplied (3x2 and 3x2)
+fix: transpose B → (3, 2) @ (2, 3) = (3, 3)
+tensor([[ 27.,  30.,  33.],
+        [ 61.,  68.,  75.],
+        [ 95., 106., 117.]])
+torch.mm is matmul for 2-D tensors: True</pre></div></div></div>
+<h3 id="the-three-common-errors-datatype">Datatype</h3>
+<p>Operations like matmul need both operands in the same dtype.</p>
+<div class="codewrap pyc"><pre class="code" data-lang="python">t16 = torch.arange(10., 100., 10., dtype=torch.float16)
+t32 = torch.arange(10., 100., 10.)
+try:
+    t16 @ t32
+except RuntimeError as e:
+    print(&quot;RuntimeError:&quot;, e)
+print(&quot;fix: convert one →&quot;, t16.float() @ t32, &quot;or&quot;, t16 @ t32.half())
+print(&quot;float → int8 truncates toward zero:&quot;, torch.tensor([3.9, -2.7, 100.0]).type(torch.int8), &quot;(int8 only holds -128…127)&quot;)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>RuntimeError: dot : expected both vectors to have same dtype, but found Half and Float
+fix: convert one → tensor(28500.) or tensor(28496., dtype=torch.float16)
+float → int8 truncates toward zero: tensor([  3,  -2, 100], dtype=torch.int8) (int8 only holds -128…127)</pre></div></div></div>
+<h3 id="the-three-common-errors-device">Device</h3>
+<div class="codewrap pyc"><pre class="code" data-lang="python">cpu_t = torch.arange(10., 100., 10.)
+dev_t = torch.arange(10., 100., 10., device=device)
+try:
+    print(cpu_t @ dev_t, &quot;(no error: both are on the CPU on this machine)&quot;)
+except RuntimeError as e:
+    print(&quot;RuntimeError:&quot;, e)
+print(&quot;fix: move one →&quot;, cpu_t.to(device) @ dev_t)</pre><div class="outblk rec"><div class="oh">Recorded output</div><div class="orow"><pre>RuntimeError: Expected all tensors to be on the same device, but got tensor is on cuda:0, different from other tensors on cpu (when checking argument in method wrapper_CUDA__dot)
+fix: move one → tensor(28500., device=&#x27;cuda:0&#x27;)</pre></div></div></div>
+<div class="donebar"><button class="donebtn" data-done="the-three-common-errors">Mark as understood</button></div>
+</section>
+
+<section class="sec" id="summary-what-shape-what-dtype-where" data-num="06" data-title="Summary: what shape, what dtype, where?">
+<h2><span class="num">06</span> Summary: what shape, what dtype, where?</h2>
+<p>When something fails, print three things about every tensor involved:</p>
+<div class="tblwrap"><table>
+<thead>
+<tr>
+<th style="text-align:left">Question</th>
+<th style="text-align:left">Check</th>
+<th style="text-align:left">Typical fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>What shape?</strong></td>
+<td style="text-align:left"><code>t.shape</code></td>
+<td style="text-align:left"><code>reshape</code>, <code>view</code>, <code>.T</code>, <code>squeeze</code> / <code>unsqueeze</code>, <code>permute</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>What dtype?</strong></td>
+<td style="text-align:left"><code>t.dtype</code></td>
+<td style="text-align:left"><code>.float()</code>, <code>.long()</code>, <code>.to(torch.float32)</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Where?</strong></td>
+<td style="text-align:left"><code>t.device</code></td>
+<td style="text-align:left"><code>.to(device)</code> on the data <em>and</em> the model</td>
+</tr>
+</tbody>
+</table></div>
+<p>And the habits that prevent most of them: device-agnostic code with one <code>device</code> variable, <code>float32</code> data for models, <code>int64</code> labels for classification losses, a seed at the top, and <code>torch.no_grad()</code> around evaluation.</p>
+<div class="donebar"><button class="donebtn" data-done="summary-what-shape-what-dtype-where">Mark as understood</button></div>
+</section>
+
+
+<div class="pager"><a href="10_tensors.html"><small>← Previous</small>Tensors</a><a class="next" href="12_pytorch_workflow.html"><small>Next →</small>The PyTorch Workflow</a></div>
+</div></main>
+</div>
+<script src="../assets/notes.js"></script>
+</body>
+</html>
